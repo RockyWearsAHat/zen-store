@@ -12,7 +12,7 @@ import path from "path"; // new
 export const app = express();
 
 /* ── 1️⃣  mount webhook at /webhook  ── */
-app.use("/webhook", webhookRouter); // POST /webhook
+app.use("/api/webhook", webhookRouter); // POST /webhook
 
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(express.json());
@@ -22,7 +22,7 @@ app.get("/test", (req: Request, res: Response) => {
   res.json({ test: "Hello from the test route!" });
 });
 
-app.use(checkoutRouter); // POST /create-checkout-session
+app.use("/api", checkoutRouter); // POST /create-checkout-session
 
 if (process.env !== undefined && process.env["VITE"]) {
   //If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)

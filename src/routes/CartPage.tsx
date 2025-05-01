@@ -22,7 +22,7 @@ export default function CartPage() {
 
   // create OR update payment intent
   const syncIntent = async () => {
-    const res = await fetch("/create-or-update-payment-intent", {
+    const res = await fetch("/api/create-or-update-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -31,7 +31,7 @@ export default function CheckoutForm({
   useEffect(() => {
     const fetchPaymentIntent = async () => {
       const res = await fetch(
-        `/retrieve-payment-intent?clientSecret=${clientSecret}`
+        `/api/retrieve-payment-intent?clientSecret=${clientSecret}`
       );
       if (res.ok) {
         const { amount } = await res.json();
@@ -60,7 +60,7 @@ export default function CheckoutForm({
       // Fetch brand & last4
       try {
         const resp = await fetch(
-          `/retrieve-payment-intent?clientSecret=${clientSecret}&expandCards=1`
+          `/api/retrieve-payment-intent?clientSecret=${clientSecret}&expandCards=1`
         );
         if (resp.ok) {
           const { brand, last4 } = await resp.json();
