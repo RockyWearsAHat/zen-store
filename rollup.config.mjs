@@ -82,6 +82,8 @@ export default [
       resolve({ preferBuiltins: true, jsnext: true, main: true }),
       commonjs({ ignoreDynamicRequires: true, ignore: builtinModules }),
       copyFile("robots.txt", "dist/robots.txt"),
+      /* make sure e‑mail helper is shipped with every lambda  */
+      copyFile("server/email.ts", "dist/server/email.ts", true),
       gzipPlugin(),
       rewriteGzipImports(),
     ],

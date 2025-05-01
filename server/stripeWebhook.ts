@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
 // import dotenv from "dotenv";
-import { sendSuccessEmail, sendFailureEmail } from "./email";
+import { sendSuccessEmail, sendFailureEmail } from "./email.js"; // <- extension added
 
 // dotenv.config();
 const router = Router();
