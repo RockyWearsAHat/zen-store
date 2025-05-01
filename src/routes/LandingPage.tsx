@@ -162,6 +162,19 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto mb-10 px-6 overflow-y-visible">
           <ReviewsCarousel />
         </div>
+
+        <button
+          onClick={async () => {
+            console.log("attempting to fetch");
+            const res = await fetch("/test", {
+              method: "GET",
+            });
+            const data = await res.json();
+            console.log(data);
+          }}
+        >
+          Test button
+        </button>
       </section>
     </div>
   );

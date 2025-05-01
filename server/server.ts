@@ -14,6 +14,10 @@ export const app = express();
 /* ── 1️⃣  mount webhook at /webhook  ── */
 app.use("/webhook", webhookRouter); // POST /webhook
 
+app.get("/test", (req: Request, res: Response) => {
+  res.json({ test: "Hello from the test route!" });
+});
+
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
