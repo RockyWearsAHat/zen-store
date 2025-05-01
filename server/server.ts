@@ -29,13 +29,6 @@ if (process.env !== undefined && process.env["VITE"]) {
   console.log("Running in dev mode");
 } else {
   if (!process.env["VITE"]) {
-    // --- new landing route ---
-    const landingPath = path.join(process.cwd(), "public", "landing.html");
-    app.get("/", (_: Request, res: Response) => {
-      res.sendFile(landingPath);
-    });
-    // --- end new landing route ---
-
     const frontendFiles = process.cwd() + "/dist/";
     app.use(express.static(frontendFiles));
 
