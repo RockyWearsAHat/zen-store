@@ -29,7 +29,7 @@ if (process.env !== undefined && process.env["VITE"]) {
 
     //If running on netlify, server is ran via lamda functions created by serverless-http
     if (!process.env.NETLIFY) {
-      app.listen(process.env["PORT"] ? process.env["PORT"] : 4000, () => {
+      app.listen(process.env.PORT || 4000, () => {
         console.log(
           !process.env["PORT"] ? "Server started on http://localhost:4000" : ""
         );

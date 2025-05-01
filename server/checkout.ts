@@ -1,7 +1,8 @@
 import { Router } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
-import webhookRouter from "./stripeWebhook";
+import * as webhookImport from "./stripeWebhook";
+import cors from "cors";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
@@ -31,7 +32,10 @@ function generateOrderNumber() {
 }
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+router.use(cors()); // allow cross‑origin calls
+
+// unwrap default when Netlify’s CJS loader adds it
+const webhookRouter = (webhookImport as any).default ?? (webhookImport as any);
 
 router.use("/webhook", webhookRouter);
 
@@ -47,6 +51,8 @@ router.post("/create-checkout-session", async (req, res) => {
   const { tax, fee, total: _total } = calculateOrderAmount(subtotal);
 
   try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
     let session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -123,6 +129,7 @@ router.post("/create-or-update-payment-intent", async (req, res) => {
   try {
     let intent: Stripe.PaymentIntent;
     if (paymentIntentId) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
       // ── UPDATE ──
       intent = await stripe.paymentIntents.update(paymentIntentId, {
         amount: total, // total includes tax and fees
@@ -139,6 +146,7 @@ router.post("/create-or-update-payment-intent", async (req, res) => {
     } else {
       // ── CREATE ──
       const orderNumber = generateOrderNumber();
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
       intent = await stripe.paymentIntents.create({
         amount: total, // total includes tax and fees
         currency: "usd",
@@ -167,6 +175,7 @@ router.get("/retrieve-payment-intent", async (req, res) => {
     expandCards?: string;
   };
   try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     const intent = (await stripe.paymentIntents.retrieve(
       clientSecret.split("_secret_")[0],
       expandCards === "1"
