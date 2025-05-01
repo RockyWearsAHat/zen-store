@@ -1,10 +1,6 @@
 import { Router } from "express";
 import Stripe from "stripe";
-import crypto from "crypto"; // ← add
-import {
-  calculateOrderAmount,
-  TAX_RATE as FALLBACK_TAX,
-} from "../src/lib/pricing";
+import { calculateOrderAmount } from "../src/lib/pricing";
 import webhookRouter from "./stripeWebhook";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
@@ -39,7 +35,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 router.use("/webhook", webhookRouter);
 
-router.get("/test", (req, res) => {
+router.get("/test", (_req, res) => {
   res.json({ test: "hello from the test route" });
 });
 
@@ -48,7 +44,7 @@ router.post("/create-checkout-session", async (req, res) => {
     items: { id: string; title: string; price: number; quantity: number }[];
   };
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const { tax, fee, total } = calculateOrderAmount(subtotal);
+  const { tax, fee, total: _total } = calculateOrderAmount(subtotal);
 
   try {
     let session = await stripe.checkout.sessions.create({

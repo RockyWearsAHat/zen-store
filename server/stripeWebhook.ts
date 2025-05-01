@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
-import dotenv from "dotenv";
+// import dotenv from "dotenv";
 import { sendSuccessEmail, sendFailureEmail } from "./email";
 
-dotenv.config();
+// dotenv.config();
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -87,8 +87,8 @@ router.post(
         "✅ payment_intent.succeeded:",
         intent.id,
         email,
-        paymentMethod?.card?.display_brand,
-        paymentMethod?.card?.last4
+        brand,
+        last4
       );
 
       if (email) {
