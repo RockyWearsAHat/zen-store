@@ -1,9 +1,7 @@
 import "dotenv/config"; // ensures env vars are loaded immediately
 import express, { Request, Response } from "express";
 import checkoutRouter from "./checkout";
-import webhookRouter from "./stripeWebhook";
 import serverless from "serverless-http";
-import path from "path"; // new
 
 // If needed, still call dotenv.config() again:
 // import dotenv from "dotenv";
@@ -11,16 +9,9 @@ import path from "path"; // new
 
 export const app = express();
 
-/* ── 1️⃣  mount webhook at /webhook  ── */
-app.use("/api/webhook", webhookRouter); // POST /webhook
-
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.get("/test", (req: Request, res: Response) => {
-  res.json({ test: "Hello from the test route!" });
-});
 
 app.use("/api", checkoutRouter); // POST /create-checkout-session
 

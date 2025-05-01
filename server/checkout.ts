@@ -5,6 +5,7 @@ import {
   calculateOrderAmount,
   TAX_RATE as FALLBACK_TAX,
 } from "../src/lib/pricing";
+import webhookRouter from "./stripeWebhook";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
@@ -35,6 +36,12 @@ function generateOrderNumber() {
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+router.use("/webhook", webhookRouter);
+
+router.get("/test", (req, res) => {
+  res.json({ test: "hello from the test route" });
+});
 
 router.post("/create-checkout-session", async (req, res) => {
   const { items } = req.body as {
