@@ -164,13 +164,14 @@ export default function LandingPage() {
         </div>
 
         <button
+          style={{ backgroundColor: "white", color: "black" }}
           onClick={async () => {
             console.log("attempting to fetch");
             const res = await fetch("/test", {
               method: "GET",
             });
             const data = await res.json();
-            console.log(data);
+            console.log(JSON.stringify(data, null, 2));
           }}
         >
           Test button
