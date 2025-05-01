@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { express } from "./server/viteExpress";
+import { express } from "./plugins/viteExpress";
 
 // https://vite.dev/config/
 export default defineConfig({

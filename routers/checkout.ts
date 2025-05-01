@@ -195,4 +195,4 @@ router.get("/retrieve-payment-intent", async (req, res) => {
   }
 });
 
-export default router;
+export const checkoutRouter = router;

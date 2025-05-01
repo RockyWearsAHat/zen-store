@@ -10,7 +10,7 @@
   status = 200
 
 [functions]
-  external_node_modules = ["express"]
+  external_node_modules = ["express", "cors"]
   node_bundler = "esbuild"
 
 [build]

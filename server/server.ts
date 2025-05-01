@@ -1,6 +1,6 @@
 // import "dotenv/config"; // ensures env vars are loaded immediately
 import express, { Request, Response } from "express";
-import checkoutRouter from "./checkout";
+import { checkoutRouter } from "../routers/checkout";
 import serverless from "serverless-http";
 
 // If needed, still call dotenv.config() again:

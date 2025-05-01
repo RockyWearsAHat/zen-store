@@ -1,10 +1,9 @@
 import { Router, Request, Response } from "express";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
-// import dotenv from "dotenv";
+import "dotenv/config";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js"; // <- extension added
 
-// dotenv.config();
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 

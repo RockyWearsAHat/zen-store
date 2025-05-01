@@ -1,8 +1,6 @@
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
-// import dotenv from "dotenv";
-
-// dotenv.config();
+import "dotenv/config";
 
 /* ─── SMTP transport───────────────────────────────────────── */
 const transporter = nodemailer.createTransport({
