@@ -1,5 +1,5 @@
 import "dotenv/config"; // ensures env vars are loaded immediately
-import express, { Request, Response } from "express";
+import express, { Request, Response, json, urlencoded } from "express";
 import { checkoutRouter } from "../routers/checkout";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
 import serverless from "serverless-http";
@@ -14,8 +14,8 @@ export const app = express();
 app.use("/api/webhook", stripeWebhookRouter);
 
 /* ── 2️⃣  normal body parsers for the rest ── */
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(json());
+app.use(urlencoded({ extended: true }));
 
 // Mount the rest of the API routes
 app.use("/api", checkoutRouter);
