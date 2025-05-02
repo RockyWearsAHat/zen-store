@@ -148,6 +148,9 @@ router.post(
     // accept both { items:[…] } and raw […] payloads
     const { items, paymentIntentId, email, shipping } = req.body;
 
+    res.json({ items, paymentIntentId, email, shipping });
+    return;
+
     // reject when items absent **or** empty
     if (!items || items.length === 0) {
       res.json({ error: "Missing or invalid (empty) items array" });
