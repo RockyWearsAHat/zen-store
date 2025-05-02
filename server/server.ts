@@ -13,7 +13,8 @@ export const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api/{*splat}", checkoutRouter); // POST /create-checkout-session
+// replace bad pattern ──────────────────────────────────────────
+app.use("/api", checkoutRouter); // GET /api/test, POST /api/create-...
 
 if (process.env !== undefined && process.env["VITE"]) {
   //If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)
