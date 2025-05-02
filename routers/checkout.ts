@@ -35,83 +35,85 @@ router.get("/test", (_req: Request, res: Response) => {
   res.json({ test: "hello from the test route" });
 });
 
-router.post("/create-checkout-session", async (req, res) => {
-  const items = JSON.parse(req.body).items || [];
+// router.post("/create-checkout-session", async (req, res) => {
+//   const items = JSON.parse(req.body).items || [];
 
-  if (!items || items.length === 0) {
-    res.status(400).json({ error: "Missing or invalid items array" });
-    return;
-  }
+//   if (!items || items.length === 0) {
+//     res.status(400).json({ error: "Missing or invalid items array" });
+//     return;
+//   }
 
-  /* ─── derive pricing from catalogue ─── */
-  const subtotal = items.reduce((sum: number, i: any) => {
-    const product = catalogue[i.id];
-    return product ? sum + product.price * i.quantity : sum;
-  }, 0);
-  const { tax, fee } = calculateOrderAmount(subtotal);
+//   /* ─── derive pricing from catalogue ─── */
+//   const subtotal = items.reduce((sum: number, i: any) => {
+//     const product = catalogue[i.id];
+//     return product ? sum + product.price * i.quantity : sum;
+//   }, 0);
+//   const { tax, fee } = calculateOrderAmount(subtotal);
 
-  /* build Stripe line_items from catalogue */
-  const productLines = items
-    .map((i: any) => {
-      const product = catalogue[i.id];
-      if (!product) return null; // skip unknown
-      return {
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(product.price * 100),
-          product_data: { name: product.title },
-        },
-        quantity: i.quantity,
-      };
-    })
-    .filter(Boolean) as Stripe.Checkout.SessionCreateParams.LineItem[];
+//   /* build Stripe line_items from catalogue */
+//   const productLines = items
+//     .map((i: any) => {
+//       const product = catalogue[i.id];
+//       if (!product) return null; // skip unknown
+//       return {
+//         price_data: {
+//           currency: "usd",
+//           unit_amount: Math.round(product.price * 100),
+//           product_data: { name: product.title },
+//         },
+//         quantity: i.quantity,
+//       };
+//     })
+//     .filter(Boolean) as Stripe.Checkout.SessionCreateParams.LineItem[];
 
-  try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        ...productLines,
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(tax * 100),
-            product_data: { name: "Tax" },
-          },
-          quantity: 1,
-        },
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(fee * 100),
-            product_data: { name: "Processing Fee" },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: { subtotal, tax, fee },
-      success_url:
-        "http://localhost:4000/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "http://localhost:4000/cart",
-      payment_intent_data: {
-        statement_descriptor_suffix: "My Store",
-        description: `Order ${new Date().toISOString()}`,
-      },
-    });
+//   try {
+//     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+//     const session = await stripe.checkout.sessions.create({
+//       mode: "payment",
+//       payment_method_types: ["card"],
+//       line_items: [
+//         ...productLines,
+//         {
+//           price_data: {
+//             currency: "usd",
+//             unit_amount: Math.round(tax * 100),
+//             product_data: { name: "Tax" },
+//           },
+//           quantity: 1,
+//         },
+//         {
+//           price_data: {
+//             currency: "usd",
+//             unit_amount: Math.round(fee * 100),
+//             product_data: { name: "Processing Fee" },
+//           },
+//           quantity: 1,
+//         },
+//       ],
+//       metadata: { subtotal, tax, fee },
+//       success_url:
+//         "http://localhost:4000/success?session_id={CHECKOUT_SESSION_ID}",
+//       cancel_url: "http://localhost:4000/cart",
+//       payment_intent_data: {
+//         statement_descriptor_suffix: "My Store",
+//         description: `Order ${new Date().toISOString()}`,
+//       },
+//     });
 
-    res.json({ id: session.id });
-  } catch (err: any) {
-    console.error("Stripe error", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+//     res.json({ id: session.id });
+//   } catch (err: any) {
+//     console.error("Stripe error", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
     const items = JSON.parse(req.body).items || [];
-    const { paymentIntentId, email, shipping } = JSON.parse(req.body) as any;
+    res.json({ items });
+    return;
+    const { paymentIntentId, email, shipping } = JSON.parse(req.body);
 
     // reject when items absent **or** empty
     if (!items || items.length === 0) {
