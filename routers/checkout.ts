@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
-import { stripeWebhookRouter as webhookRouter } from "./stripeWebhook.js"; // CJS‑safe
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
@@ -32,16 +31,18 @@ function generateOrderNumber() {
 
 const router = Router();
 
-router.use("/webhook", webhookRouter);
-
 router.get("/test", (_req: Request, res: Response) => {
   res.json({ test: "hello from the test route" });
 });
 
 router.post("/create-checkout-session", async (req, res) => {
   const { items } = req.body as {
-    items: { id: string; title: string; price: number; quantity: number }[];
+    items?: { id: string; title: string; price: number; quantity: number }[];
   };
+  if (!Array.isArray(items)) {
+    res.status(400).json({ error: "Missing or invalid items array" });
+    return;
+  }
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const { tax, fee, total: _total } = calculateOrderAmount(subtotal);
 
@@ -94,75 +95,83 @@ router.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-router.post("/create-or-update-payment-intent", async (req, res) => {
-  const { items, paymentIntentId, email, shipping } = req.body as {
-    items: { id: string; quantity: number }[];
-    paymentIntentId?: string | null;
-    email?: string;
-    shipping?: {
-      name?: string;
-      address?: {
-        line1?: string;
-        line2?: string;
-        city?: string;
-        postal_code?: string;
-        state?: string;
-        country?: string;
+router.post(
+  "/create-or-update-payment-intent",
+  async (req: Request, res: Response) => {
+    const { items, paymentIntentId, email, shipping } = req.body as {
+      items?: { id: string; quantity: number }[];
+      paymentIntentId?: string | null;
+      email?: string;
+      shipping?: {
+        name?: string;
+        address?: {
+          line1?: string;
+          line2?: string;
+          city?: string;
+          postal_code?: string;
+          state?: string;
+          country?: string;
+        };
       };
     };
-  };
 
-  // use catalogue prices, ignore anything coming from client
-  const subtotal = items.reduce((sum, i) => {
-    const product = catalogue[i.id];
-    return product ? sum + product.price * i.quantity : sum;
-  }, 0);
-
-  // calculate tax and fees
-  const { tax, fee, total } = calculateOrderAmount(subtotal);
-
-  try {
-    let intent: Stripe.PaymentIntent;
-    if (paymentIntentId) {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-      // ── UPDATE ──
-      intent = await stripe.paymentIntents.update(paymentIntentId, {
-        amount: total, // total includes tax and fees
-        payment_method_types: ["card"],
-        metadata: {
-          subtotal,
-          tax,
-          fee,
-          items: JSON.stringify(items),
-          shipping: shipping ? JSON.stringify(shipping) : null, // ← add
-        },
-        receipt_email: email || undefined,
-      });
-    } else {
-      // ── CREATE ──
-      const orderNumber = generateOrderNumber();
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-      intent = await stripe.paymentIntents.create({
-        amount: total, // total includes tax and fees
-        currency: "usd",
-        payment_method_types: ["card"],
-        metadata: {
-          order_number: orderNumber, // ← new
-          subtotal,
-          tax,
-          fee,
-          items: JSON.stringify(items),
-          shipping: shipping ? JSON.stringify(shipping) : null, // ← add
-        },
-        receipt_email: email || undefined,
-      });
+    if (!Array.isArray(items)) {
+      res.status(400).json({ error: "Missing or invalid items array" });
+      return;
     }
-    res.json({ id: intent.id, clientSecret: intent.client_secret });
-  } catch (err: any) {
-    console.error("Stripe PI error", err);
-    res.status(500).json({ error: err.message });
+
+    // use catalogue prices, ignore anything coming from client
+    const subtotal = items.reduce((sum, i) => {
+      const product = catalogue[i.id];
+      return product ? sum + product.price * i.quantity : sum;
+    }, 0);
+
+    // calculate tax and fees
+    const { tax, fee, total } = calculateOrderAmount(subtotal);
+
+    try {
+      let intent: Stripe.PaymentIntent;
+      if (paymentIntentId) {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+        // ── UPDATE ──
+        intent = await stripe.paymentIntents.update(paymentIntentId, {
+          amount: total, // total includes tax and fees
+          payment_method_types: ["card"],
+          metadata: {
+            subtotal,
+            tax,
+            fee,
+            items: JSON.stringify(items),
+            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+          },
+          receipt_email: email || undefined,
+        });
+      } else {
+        // ── CREATE ──
+        const orderNumber = generateOrderNumber();
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+        intent = await stripe.paymentIntents.create({
+          amount: total, // total includes tax and fees
+          currency: "usd",
+          payment_method_types: ["card"],
+          metadata: {
+            order_number: orderNumber, // ← new
+            subtotal,
+            tax,
+            fee,
+            items: JSON.stringify(items),
+            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+          },
+          receipt_email: email || undefined,
+        });
+      }
+      res.json({ id: intent.id, clientSecret: intent.client_secret });
+    } catch (err: any) {
+      console.error("Stripe PI error", err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 router.get("/retrieve-payment-intent", async (req, res) => {
   const { clientSecret, expandCards } = req.query as {

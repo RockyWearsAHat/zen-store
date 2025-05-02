@@ -1,6 +1,7 @@
 import "dotenv/config"; // ensures env vars are loaded immediately
 import express, { Request, Response } from "express";
 import { checkoutRouter } from "../routers/checkout";
+import { stripeWebhookRouter } from "../routers/stripeWebhook";
 import serverless from "serverless-http";
 
 // If needed, still call dotenv.config() again:
@@ -9,12 +10,15 @@ import serverless from "serverless-http";
 
 export const app = express();
 
+// Mount webhook route first, before body parsers
+app.use("/api/webhook", stripeWebhookRouter);
+
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// replace bad pattern ──────────────────────────────────────────
-app.use("/api", checkoutRouter); // GET /api/test, POST /api/create-...
+// Mount the rest of the API routes
+app.use("/api", checkoutRouter);
 
 if (process.env !== undefined && process.env["VITE"]) {
   //If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)

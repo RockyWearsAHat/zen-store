@@ -121,8 +121,4 @@ router.post(
 );
 
 /* ─── exports ──────────────────────────────────────────────── */
-export default router;
-/* make it work for CommonJS require() */
 export { router as stripeWebhookRouter };
-// @ts-ignore – allow assignment for CJS interop
-typeof module !== "undefined" && (module.exports = router);
