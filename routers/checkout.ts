@@ -52,14 +52,11 @@ function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
 
 // helper: always return a usable JS object
 function getBody(req: Request): any {
-  if (typeof req.body === "string" && req.body.trim()) {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      /* ignore – will be caught later */
-    }
+  try {
+    return JSON.parse(req.body);
+  } catch {
+    return req.body;
   }
-  return req.body; // already parsed by express.json()
 }
 // ───────────────────────────────────────────────────────────────
 
@@ -145,25 +142,14 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    // accept both { items:[…] } and raw […] payloads
-    const items = JSON.parse(req.body).items;
-    const paymentIntentId = req.body.paymentIntentId;
-    const email = req.body.email;
-    const shipping = req.body.shipping;
-
-    res.json({
-      items,
-      paymentIntentId,
-      email,
-      shipping,
-      test: "hello",
-      body: JSON.parse(req.body),
-    });
-    return;
+    /* parse body safely (works for Netlify string bodies too) */
+    const body = getBody(req);
+    const items = parseItems(body?.items ?? body);
+    const { paymentIntentId, email, shipping } = body as any;
 
     // reject when items absent **or** empty
     if (!items || items.length === 0) {
-      res.json({ error: "Missing or invalid (empty) items array" });
+      res.status(400).json({ error: "Missing or empty items array" });
       return;
     }
 

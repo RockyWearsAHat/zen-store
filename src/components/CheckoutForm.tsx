@@ -74,7 +74,7 @@ export default function CheckoutForm({
         console.error("Unable to retrieve card info", err);
       }
       clearCart();
-      localStorage.removeItem("paymentIntent");
+      localStorage.removeItem("paymentIntentId");
       navigate("/success");
     }
   };
