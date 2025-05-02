@@ -146,7 +146,7 @@ router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
     const body = getBody(req); // ← simplified
-    const items = parseItems(body?.items ?? body); // ← fallback
+    const items = parseItems(body?.items); // ← removed “?? body”
     const { paymentIntentId, email, shipping } = body as any;
 
     if (!items) {
