@@ -43,25 +43,16 @@ function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
   return null;
 }
 
-/* ─── force‑parse body when express.json() produced {} ───────── */
-async function ensureJson(req: Request): Promise<any> {
+// helper: always return a usable JS object
+function getBody(req: Request): any {
   if (typeof req.body === "string" && req.body.trim()) {
-    return JSON.parse(req.body);
-  }
-  if (typeof req.body === "object" && Object.keys(req.body).length) {
-    return req.body; // already parsed
-  }
-  // Vite dev server stores raw buffer on req.rawBody
-  if ((req as any).rawBody) {
     try {
-      return JSON.parse((req as any).rawBody.toString());
-    } catch {}
+      return JSON.parse(req.body);
+    } catch {
+      /* ignore – will be caught later */
+    }
   }
-  /* final fallback: read the stream (only works once, but we are last) */
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  const str = Buffer.concat(chunks).toString();
-  return str ? JSON.parse(str) : {};
+  return req.body; // already parsed by express.json()
 }
 // ───────────────────────────────────────────────────────────────
 
@@ -72,8 +63,8 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  const body = await ensureJson(req); // ← changed
-  const items = parseItems(body?.items);
+  const body = getBody(req); // ← simplified
+  const items = parseItems(body?.items ?? body); // ← fallback
 
   if (!items) {
     res.status(400).json({ error: "Missing or invalid items array" });
@@ -147,8 +138,8 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    const body = await ensureJson(req); // ← changed
-    const items = parseItems(body?.items);
+    const body = getBody(req); // ← simplified
+    const items = parseItems(body?.items ?? body); // ← fallback
     const { paymentIntentId, email, shipping } = body as any;
 
     if (!items) {
