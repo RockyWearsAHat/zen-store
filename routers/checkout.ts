@@ -146,11 +146,13 @@ router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
     const body = getBody(req); // ← simplified
-    const items = parseItems(body?.items); // ← removed “?? body”
+    // accept both { items:[…] } and raw […] payloads
+    const items = parseItems(body?.items ?? body);
     const { paymentIntentId, email, shipping } = body as any;
 
-    if (!items) {
-      res.status(400).json({ error: "Missing or invalid items array" });
+    // reject when items absent **or** empty
+    if (!items || items.length === 0) {
+      res.status(400).json({ error: "Missing or invalid (empty) items array" });
       return;
     }
 

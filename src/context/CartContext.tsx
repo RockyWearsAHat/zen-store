@@ -60,8 +60,7 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
   const clearCart = () => {
     setItems([]);
     localStorage.removeItem("cart");
-    localStorage.removeItem("paymentIntent");
-    // Do NOT remove paymentIntentId here
+    localStorage.removeItem("paymentIntentId"); // keep key names consistent
   };
 
   const subtotal = useMemo(
