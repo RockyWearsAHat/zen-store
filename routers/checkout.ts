@@ -146,9 +146,19 @@ router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
     // accept both { items:[…] } and raw […] payloads
-    const { items, paymentIntentId, email, shipping } = req.body;
+    const items = req.body.items;
+    const paymentIntentId = req.body.paymentIntentId;
+    const email = req.body.email;
+    const shipping = req.body.shipping;
 
-    res.json({ items, paymentIntentId, email, shipping, test: "hello" });
+    res.json({
+      items,
+      paymentIntentId,
+      email,
+      shipping,
+      test: "hello",
+      body: req.body,
+    });
     return;
 
     // reject when items absent **or** empty
