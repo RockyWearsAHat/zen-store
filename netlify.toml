@@ -1,5 +1,4 @@
 [[redirects]]
-  force = true
   from = "/api/*"
   to = "/.netlify/functions/server/api/:splat"
   status = 200
@@ -8,10 +7,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
-
-[functions]
-  external_node_modules = ["express", "cors"]
-  node_bundler = "esbuild"
 
 [build]
   functions = "dist/server"
