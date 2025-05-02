@@ -70,9 +70,6 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  res.json(req.body);
-  return;
-  //@ts-ignore
   const body = getBody(req); // ← simplified
   const items = parseItems(body?.items ?? body); // ← fallback
 
@@ -82,7 +79,6 @@ router.post("/create-checkout-session", async (req, res) => {
   }
 
   /* ─── derive pricing from catalogue ─── */
-  //@ts-ignore
   const subtotal = items.reduce((sum, i) => {
     const product = catalogue[i.id];
     return product ? sum + product.price * i.quantity : sum;
@@ -90,7 +86,6 @@ router.post("/create-checkout-session", async (req, res) => {
   const { tax, fee } = calculateOrderAmount(subtotal);
 
   /* build Stripe line_items from catalogue */
-  //@ts-ignore
   const productLines = items
     .map((i) => {
       const product = catalogue[i.id];
@@ -150,18 +145,23 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
+    res.json(req.body);
+    return;
+
     const body = getBody(req); // ← simplified
     // accept both { items:[…] } and raw […] payloads
     const items = parseItems(body?.items ?? body);
     const { paymentIntentId, email, shipping } = body as any;
 
     // reject when items absent **or** empty
+    //@ts-ignore
     if (!items || items.length === 0) {
       res.status(400).json({ error: "Missing or invalid (empty) items array" });
       return;
     }
 
     // use catalogue prices, ignore anything coming from client
+    //@ts-ignore
     const subtotal = items.reduce((sum, i) => {
       const product = catalogue[i.id];
       return product ? sum + product.price * i.quantity : sum;
