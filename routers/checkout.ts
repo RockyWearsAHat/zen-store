@@ -29,7 +29,19 @@ function generateOrderNumber() {
   return `${yyyymmdd}${rand}`;
 }
 
-/* ---------- helpers restored ---------- */
+/* ---------- helpers (safe JSON parsing) ---------- */
+function toObject(maybeString: any): any {
+  if (typeof maybeString === "string") {
+    try {
+      return JSON.parse(maybeString);
+    } catch {
+      return {}; // malformed JSON → empty object
+    }
+  }
+  return maybeString ?? {};
+}
+/* ----------------------------------------------- */
+
 function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
   if (Array.isArray(raw)) return raw;
   if (
@@ -142,21 +154,17 @@ router.get("/test", (_req: Request, res: Response) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    res.json({ body: JSON.parse(req.body), items: JSON.parse(req.body).items });
-    return;
-
-    const body = getBody(req);
+    // Netlify sometimes hands us a string – salvage it
+    const body = toObject(req.body);
     const items = parseItems(body?.items ?? body);
     const { paymentIntentId, email, shipping } = body as any;
 
-    //@ts-ignore
     if (!items || items.length === 0) {
       res.status(400).json({ error: "Missing or empty items array" });
       return;
     }
 
     // use catalogue prices, ignore anything coming from client
-    //@ts-ignore
     const subtotal = items.reduce((sum, i) => {
       const product = catalogue[i.id];
       return product ? sum + product.price * i.quantity : sum;
