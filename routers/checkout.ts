@@ -142,66 +142,69 @@ router.get("/test", (_req: Request, res: Response) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    const body = getBody(req);
-    const items = parseItems(body?.items ?? body);
-    const { paymentIntentId, email, shipping } = body as any;
+    res.json({ body: JSON.parse(req.body), items: JSON.parse(req.body).items });
+    return;
 
-    if (!items || items.length === 0) {
-      res.status(400).json({ error: "Missing or empty items array" });
-      return;
-    }
+    // const body = getBody(req);
+    // const items = parseItems(body?.items ?? body);
+    // const { paymentIntentId, email, shipping } = body as any;
 
-    // use catalogue prices, ignore anything coming from client
-    //@ts-ignore
-    const subtotal = items.reduce((sum, i) => {
-      const product = catalogue[i.id];
-      return product ? sum + product.price * i.quantity : sum;
-    }, 0);
+    // if (!items || items.length === 0) {
+    //   res.status(400).json({ error: "Missing or empty items array" });
+    //   return;
+    // }
 
-    // calculate tax and fees
-    const { tax, fee, total } = calculateOrderAmount(subtotal);
+    // // use catalogue prices, ignore anything coming from client
+    // //@ts-ignore
+    // const subtotal = items.reduce((sum, i) => {
+    //   const product = catalogue[i.id];
+    //   return product ? sum + product.price * i.quantity : sum;
+    // }, 0);
 
-    try {
-      let intent: Stripe.PaymentIntent;
-      if (paymentIntentId) {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-        // ── UPDATE ──
-        intent = await stripe.paymentIntents.update(paymentIntentId, {
-          amount: total, // total includes tax and fees
-          payment_method_types: ["card"],
-          metadata: {
-            subtotal,
-            tax,
-            fee,
-            items: JSON.stringify(items),
-            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
-          },
-          receipt_email: email || undefined,
-        });
-      } else {
-        // ── CREATE ──
-        const orderNumber = generateOrderNumber();
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-        intent = await stripe.paymentIntents.create({
-          amount: total, // total includes tax and fees
-          currency: "usd",
-          payment_method_types: ["card"],
-          metadata: {
-            order_number: orderNumber, // ← new
-            subtotal,
-            tax,
-            fee,
-            items: JSON.stringify(items),
-            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
-          },
-          receipt_email: email || undefined,
-        });
-      }
-      res.json({ id: intent.id, clientSecret: intent.client_secret });
-    } catch (err: any) {
-      console.error("Stripe PI error", err);
-      res.status(500).json({ error: err.message });
-    }
+    // // calculate tax and fees
+    // const { tax, fee, total } = calculateOrderAmount(subtotal);
+
+    // try {
+    //   let intent: Stripe.PaymentIntent;
+    //   if (paymentIntentId) {
+    //     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    //     // ── UPDATE ──
+    //     intent = await stripe.paymentIntents.update(paymentIntentId, {
+    //       amount: total, // total includes tax and fees
+    //       payment_method_types: ["card"],
+    //       metadata: {
+    //         subtotal,
+    //         tax,
+    //         fee,
+    //         items: JSON.stringify(items),
+    //         shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+    //       },
+    //       receipt_email: email || undefined,
+    //     });
+    //   } else {
+    //     // ── CREATE ──
+    //     const orderNumber = generateOrderNumber();
+    //     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    //     intent = await stripe.paymentIntents.create({
+    //       amount: total, // total includes tax and fees
+    //       currency: "usd",
+    //       payment_method_types: ["card"],
+    //       metadata: {
+    //         order_number: orderNumber, // ← new
+    //         subtotal,
+    //         tax,
+    //         fee,
+    //         items: JSON.stringify(items),
+    //         shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+    //       },
+    //       receipt_email: email || undefined,
+    //     });
+    //   }
+    //   res.json({ id: intent.id, clientSecret: intent.client_secret });
+    // } catch (err: any) {
+    //   console.error("Stripe PI error", err);
+    //   res.status(500).json({ error: err.message });
+    // }
   }
 );
 
