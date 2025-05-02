@@ -43,6 +43,28 @@ function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
   return null;
 }
 
+/* ─── force‑parse body when express.json() produced {} ───────── */
+async function ensureJson(req: Request): Promise<any> {
+  if (typeof req.body === "string" && req.body.trim()) {
+    return JSON.parse(req.body);
+  }
+  if (typeof req.body === "object" && Object.keys(req.body).length) {
+    return req.body; // already parsed
+  }
+  // Vite dev server stores raw buffer on req.rawBody
+  if ((req as any).rawBody) {
+    try {
+      return JSON.parse((req as any).rawBody.toString());
+    } catch {}
+  }
+  /* final fallback: read the stream (only works once, but we are last) */
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  const str = Buffer.concat(chunks).toString();
+  return str ? JSON.parse(str) : {};
+}
+// ───────────────────────────────────────────────────────────────
+
 const router = Router();
 
 router.get("/test", (_req: Request, res: Response) => {
@@ -50,10 +72,8 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  /* ─── NEW: normalise body ─── */
-  const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  const body = await ensureJson(req); // ← changed
   const items = parseItems(body?.items);
-  /* ─────────────────────────── */
 
   if (!items) {
     res.status(400).json({ error: "Missing or invalid items array" });
@@ -127,11 +147,9 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    /* ─── NEW: normalise body ─── */
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = await ensureJson(req); // ← changed
     const items = parseItems(body?.items);
     const { paymentIntentId, email, shipping } = body as any;
-    /* ─────────────────────────── */
 
     if (!items) {
       res.status(400).json({ error: "Missing or invalid items array" });
