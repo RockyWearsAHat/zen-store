@@ -22,11 +22,14 @@ export default function CartPage() {
 
   // create OR update payment intent
   const syncIntent = async () => {
+    const itemsPayload = Array.isArray(items)
+      ? items.map(({ id, quantity }) => ({ id, quantity }))
+      : [];
     const res = await fetch("/api/create-or-update-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: items.map(({ id, quantity }) => ({ id, quantity })),
+        items: itemsPayload,
         paymentIntentId,
         email, // always send email
         shipping, // ← pass shipping
