@@ -61,16 +61,16 @@ function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
   return null;
 }
 
-function getBody(req: Request): any {
-  if (typeof req.body === "string" && req.body.trim()) {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      /* fallthrough */
-    }
-  }
-  return req.body;
-}
+// function getBody(req: Request): any {
+//   if (typeof req.body === "string" && req.body.trim()) {
+//     try {
+//       return JSON.parse(req.body);
+//     } catch {
+//       /* fallthrough */
+//     }
+//   }
+//   return req.body;
+// }
 // ---------- end helpers ----------
 
 const router = Router();
