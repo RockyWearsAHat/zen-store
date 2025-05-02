@@ -31,7 +31,14 @@ function generateOrderNumber() {
 
 // helper: normalise items coming from req.body
 function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
-  if (Array.isArray(raw)) return raw; // normal case
+  if (Array.isArray(raw)) return raw;
+  if (
+    typeof raw === "object" &&
+    raw !== null &&
+    Array.isArray((raw as any).items)
+  ) {
+    return (raw as any).items;
+  }
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
