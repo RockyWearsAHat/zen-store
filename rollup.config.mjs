@@ -77,13 +77,10 @@ export default [
       return id.includes(sep + "node_modules" + sep);
     },
     plugins: [
-      // copyIndexFile("index.html", "/build/index.html", true),
       typescript({ moduleResolution: "bundler" }),
       resolve({ preferBuiltins: true, jsnext: true, main: true }),
       commonjs({ ignoreDynamicRequires: true, ignore: builtinModules }),
       copyFile("robots.txt", "dist/robots.txt"),
-      /* make sure e‑mail helper is shipped with every lambda  */
-      copyFile("server/email.ts", "dist/server/email.ts", true),
       gzipPlugin(),
       rewriteGzipImports(),
     ],

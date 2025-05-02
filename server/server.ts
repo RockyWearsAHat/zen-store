@@ -1,4 +1,4 @@
-// import "dotenv/config"; // ensures env vars are loaded immediately
+import "dotenv/config"; // ensures env vars are loaded immediately
 import express, { Request, Response } from "express";
 import { checkoutRouter } from "../routers/checkout";
 import serverless from "serverless-http";
@@ -23,7 +23,7 @@ if (process.env !== undefined && process.env["VITE"]) {
     const frontendFiles = process.cwd() + "/dist/";
     app.use(express.static(frontendFiles));
 
-    app.get(/(.*)/, (_: Request, res: Response) => {
+    app.get("/*", (_: Request, res: Response) => {
       res.sendFile("index.html", { root: frontendFiles });
     });
 
