@@ -145,18 +145,12 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    res.json(req.body);
-    return;
-
-    const body = getBody(req); // ← simplified
     // accept both { items:[…] } and raw […] payloads
-    const items = parseItems(body?.items ?? body);
-    const { paymentIntentId, email, shipping } = body as any;
+    const { items, paymentIntentId, email, shipping } = req.body;
 
     // reject when items absent **or** empty
-    //@ts-ignore
     if (!items || items.length === 0) {
-      res.status(400).json({ error: "Missing or invalid (empty) items array" });
+      res.json({ error: "Missing or invalid (empty) items array" });
       return;
     }
 
