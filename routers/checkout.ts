@@ -148,7 +148,7 @@ router.post(
     // accept both { items:[…] } and raw […] payloads
     const { items, paymentIntentId, email, shipping } = req.body;
 
-    res.json({ items, paymentIntentId, email, shipping });
+    res.json({ items, paymentIntentId, email, shipping, test: "hello" });
     return;
 
     // reject when items absent **or** empty
