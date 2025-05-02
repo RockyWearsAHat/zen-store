@@ -47,7 +47,7 @@ export default function CartPage() {
 
   // keep payment intent in sync whenever cart value changes
   useEffect(() => {
-    if (items.length) {
+    if (items.length > 0) {
       syncIntent(); // subtotal changed
     } else {
       localStorage.removeItem("paymentIntentId");
@@ -60,7 +60,7 @@ export default function CartPage() {
 
   // update payment intent whenever the email changes
   useEffect(() => {
-    if (paymentIntentId && email.trim()) {
+    if (paymentIntentId && email.trim() && items.length > 0) {
       syncIntent(); // pushes receipt_email to Stripe
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
