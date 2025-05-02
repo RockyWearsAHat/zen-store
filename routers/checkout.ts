@@ -70,6 +70,9 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
+  res.json(req.body);
+  return;
+  //@ts-ignore
   const body = getBody(req); // ← simplified
   const items = parseItems(body?.items ?? body); // ← fallback
 
@@ -79,6 +82,7 @@ router.post("/create-checkout-session", async (req, res) => {
   }
 
   /* ─── derive pricing from catalogue ─── */
+  //@ts-ignore
   const subtotal = items.reduce((sum, i) => {
     const product = catalogue[i.id];
     return product ? sum + product.price * i.quantity : sum;
@@ -86,6 +90,7 @@ router.post("/create-checkout-session", async (req, res) => {
   const { tax, fee } = calculateOrderAmount(subtotal);
 
   /* build Stripe line_items from catalogue */
+  //@ts-ignore
   const productLines = items
     .map((i) => {
       const product = catalogue[i.id];
