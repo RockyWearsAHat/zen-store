@@ -9,6 +9,8 @@
   status = 200
 
 [build]
-  functions = "dist/server"
   command = "npm install && npm run build"
   publish = "dist"
+
+[functions]
+  directory = "server"

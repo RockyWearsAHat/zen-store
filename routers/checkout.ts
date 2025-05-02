@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
 import * as webhookImport from "./stripeWebhook";
@@ -39,8 +39,8 @@ const webhookRouter = (webhookImport as any).default ?? (webhookImport as any);
 
 router.use("/webhook", webhookRouter);
 
-router.get("/test", (_req, res) => {
-  res.json({ test: "hello from the test route" });
+router.get("/test", async (_req: Request, res: Response) => {
+  return res.json({ test: "hello from the test route" });
 });
 
 router.post("/create-checkout-session", async (req, res) => {
