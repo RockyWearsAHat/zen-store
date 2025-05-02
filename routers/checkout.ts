@@ -29,6 +29,20 @@ function generateOrderNumber() {
   return `${yyyymmdd}${rand}`;
 }
 
+// helper: normalise items coming from req.body
+function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
+  if (Array.isArray(raw)) return raw; // normal case
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null; // stringified JSON
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 const router = Router();
 
 router.get("/test", (_req: Request, res: Response) => {
@@ -36,31 +50,42 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  const { items } = req.body as {
-    items?: { id: string; title: string; price: number; quantity: number }[];
-  };
-  if (!Array.isArray(items)) {
+  const items = parseItems((req.body as any).items);
+  if (!items) {
     res.status(400).json({ error: "Missing or invalid items array" });
     return;
   }
-  const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const { tax, fee, total: _total } = calculateOrderAmount(subtotal);
+
+  /* ─── derive pricing from catalogue ─── */
+  const subtotal = items.reduce((sum, i) => {
+    const product = catalogue[i.id];
+    return product ? sum + product.price * i.quantity : sum;
+  }, 0);
+  const { tax, fee } = calculateOrderAmount(subtotal);
+
+  /* build Stripe line_items from catalogue */
+  const productLines = items
+    .map((i) => {
+      const product = catalogue[i.id];
+      if (!product) return null; // skip unknown
+      return {
+        price_data: {
+          currency: "usd",
+          unit_amount: Math.round(product.price * 100),
+          product_data: { name: product.title },
+        },
+        quantity: i.quantity,
+      };
+    })
+    .filter(Boolean) as Stripe.Checkout.SessionCreateParams.LineItem[];
 
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-    let session = await stripe.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
       line_items: [
-        ...items.map((i) => ({
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(i.price * 100),
-            product_data: { name: i.title },
-          },
-          quantity: i.quantity,
-        })),
+        ...productLines,
         {
           price_data: {
             currency: "usd",
@@ -98,24 +123,9 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    const { items, paymentIntentId, email, shipping } = req.body as {
-      items?: { id: string; quantity: number }[];
-      paymentIntentId?: string | null;
-      email?: string;
-      shipping?: {
-        name?: string;
-        address?: {
-          line1?: string;
-          line2?: string;
-          city?: string;
-          postal_code?: string;
-          state?: string;
-          country?: string;
-        };
-      };
-    };
-
-    if (!Array.isArray(items)) {
+    const items = parseItems((req.body as any).items);
+    const { paymentIntentId, email, shipping } = req.body as any;
+    if (!items) {
       res.status(400).json({ error: "Missing or invalid items array" });
       return;
     }
