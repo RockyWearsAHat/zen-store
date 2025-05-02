@@ -146,7 +146,7 @@ router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
     // accept both { items:[…] } and raw […] payloads
-    const items = req.body.items;
+    const items = JSON.parse(req.body).items;
     const paymentIntentId = req.body.paymentIntentId;
     const email = req.body.email;
     const shipping = req.body.shipping;
@@ -157,7 +157,7 @@ router.post(
       email,
       shipping,
       test: "hello",
-      body: req.body,
+      body: JSON.parse(req.body),
     });
     return;
 
