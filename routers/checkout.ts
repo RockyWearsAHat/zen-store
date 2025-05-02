@@ -29,6 +29,38 @@ function generateOrderNumber() {
   return `${yyyymmdd}${rand}`;
 }
 
+/* ---------- helpers restored ---------- */
+function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (
+    typeof raw === "object" &&
+    raw !== null &&
+    Array.isArray((raw as any).items)
+  )
+    return (raw as any).items;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function getBody(req: Request): any {
+  if (typeof req.body === "string" && req.body.trim()) {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      /* fallthrough */
+    }
+  }
+  return req.body;
+}
+// ---------- end helpers ----------
+
 const router = Router();
 
 router.get("/test", (_req: Request, res: Response) => {
@@ -110,12 +142,10 @@ router.get("/test", (_req: Request, res: Response) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    const items = JSON.parse(req.body).items || [];
-    res.json({ items });
-    return;
-    const { paymentIntentId, email, shipping } = JSON.parse(req.body);
+    const body = getBody(req);
+    const items = parseItems(body?.items ?? body);
+    const { paymentIntentId, email, shipping } = body as any;
 
-    // reject when items absent **or** empty
     if (!items || items.length === 0) {
       res.status(400).json({ error: "Missing or empty items array" });
       return;
