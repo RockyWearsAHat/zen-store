@@ -1,8 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
-import * as webhookImport from "./stripeWebhook";
-import cors from "cors";
+import webhookRouter from "./stripeWebhook";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
@@ -32,15 +31,11 @@ function generateOrderNumber() {
 }
 
 const router = Router();
-router.use(cors()); // allow cross‑origin calls
-
-// unwrap default when Netlify’s CJS loader adds it
-const webhookRouter = (webhookImport as any).default ?? (webhookImport as any);
 
 router.use("/webhook", webhookRouter);
 
-router.get("/test", async (_req: Request, res: Response) => {
-  return res.json({ test: "hello from the test route" });
+router.get("/test", (_req: Request, res: Response) => {
+  res.json({ test: "hello from the test route" });
 });
 
 router.post("/create-checkout-session", async (req, res) => {

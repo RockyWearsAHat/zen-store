@@ -23,7 +23,7 @@ if (process.env !== undefined && process.env["VITE"]) {
     const frontendFiles = process.cwd() + "/dist/";
     app.use(express.static(frontendFiles));
 
-    app.get("/*", (_: Request, res: Response) => {
+    app.get("/{*splat}", (_: Request, res: Response) => {
       res.sendFile("index.html", { root: frontendFiles });
     });
 
