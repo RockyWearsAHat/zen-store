@@ -50,7 +50,11 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  const items = parseItems((req.body as any).items);
+  /* ─── NEW: normalise body ─── */
+  const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  const items = parseItems(body?.items);
+  /* ─────────────────────────── */
+
   if (!items) {
     res.status(400).json({ error: "Missing or invalid items array" });
     return;
@@ -123,8 +127,12 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    const items = parseItems((req.body as any).items);
-    const { paymentIntentId, email, shipping } = req.body as any;
+    /* ─── NEW: normalise body ─── */
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const items = parseItems(body?.items);
+    const { paymentIntentId, email, shipping } = body as any;
+    /* ─────────────────────────── */
+
     if (!items) {
       res.status(400).json({ error: "Missing or invalid items array" });
       return;
