@@ -167,9 +167,7 @@ export default function LandingPage() {
           style={{ backgroundColor: "white", color: "black" }}
           onClick={async () => {
             console.log("attempting to fetch");
-            const res = await fetch("/api/test", {
-              method: "GET",
-            });
+            const res = await fetch("/api/test");
             const data = await res.json();
             console.log(JSON.stringify(data, null, 2));
           }}
