@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
-import webhookRouter from "./stripeWebhook";
+import { stripeWebhookRouter as webhookRouter } from "./stripeWebhook.js"; // CJS‑safe
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
