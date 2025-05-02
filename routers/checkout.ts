@@ -29,37 +29,6 @@ function generateOrderNumber() {
   return `${yyyymmdd}${rand}`;
 }
 
-// helper: normalise items coming from req.body
-function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
-  if (Array.isArray(raw)) return raw;
-  if (
-    typeof raw === "object" &&
-    raw !== null &&
-    Array.isArray((raw as any).items)
-  ) {
-    return (raw as any).items;
-  }
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : null; // stringified JSON
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-// helper: always return a usable JS object
-function getBody(req: Request): any {
-  try {
-    return JSON.parse(req.body);
-  } catch {
-    return req.body;
-  }
-}
-// ───────────────────────────────────────────────────────────────
-
 const router = Router();
 
 router.get("/test", (_req: Request, res: Response) => {
@@ -67,16 +36,15 @@ router.get("/test", (_req: Request, res: Response) => {
 });
 
 router.post("/create-checkout-session", async (req, res) => {
-  const body = getBody(req); // ← simplified
-  const items = parseItems(body?.items ?? body); // ← fallback
+  const items = JSON.parse(req.body).items || [];
 
-  if (!items) {
+  if (!items || items.length === 0) {
     res.status(400).json({ error: "Missing or invalid items array" });
     return;
   }
 
   /* ─── derive pricing from catalogue ─── */
-  const subtotal = items.reduce((sum, i) => {
+  const subtotal = items.reduce((sum: number, i: any) => {
     const product = catalogue[i.id];
     return product ? sum + product.price * i.quantity : sum;
   }, 0);
@@ -84,7 +52,7 @@ router.post("/create-checkout-session", async (req, res) => {
 
   /* build Stripe line_items from catalogue */
   const productLines = items
-    .map((i) => {
+    .map((i: any) => {
       const product = catalogue[i.id];
       if (!product) return null; // skip unknown
       return {
@@ -142,10 +110,8 @@ router.post("/create-checkout-session", async (req, res) => {
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    /* parse body safely (works for Netlify string bodies too) */
-    const body = getBody(req);
-    const items = parseItems(body?.items ?? body);
-    const { paymentIntentId, email, shipping } = body as any;
+    const items = JSON.parse(req.body).items || [];
+    const { paymentIntentId, email, shipping } = JSON.parse(req.body) as any;
 
     // reject when items absent **or** empty
     if (!items || items.length === 0) {
