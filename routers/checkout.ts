@@ -151,6 +151,13 @@ router.get("/test", (_req: Request, res: Response) => {
 //   }
 // });
 
+router.post("/create-or-update-payment-intent", (req, _res, next) => {
+  console.log("→ headers:", req.headers["content-type"]);
+  console.log("→ typeof body:", typeof req.body);
+  console.log("→ body slice:", String(req.body).slice(0, 200));
+  next(); // <‑‑ keep existing handler running
+});
+
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
