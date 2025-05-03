@@ -100,7 +100,9 @@ async function getUPSLocation(
 
     /* 2️⃣  Tracking details */
     const trackRes = await fetch(
-      `https://onlinetools.ups.com/api/track/v1/details/${trk}`,
+      `https://${
+        !process.env["VITE"] ? `onlinetools` : `wwwcie`
+      }.ups.com/api/track/v1/details/${trk}`,
       {
         headers: {
           Authorization: `Bearer ${access_token}`,
@@ -126,6 +128,11 @@ async function getUPSLocation(
     return null;
   }
 }
+
+/* ---------- constants ---------- */
+const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay live
+const FALLBACK_LABEL = "United States"; // generic label for fallback
+const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795"); // US centroid
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -172,24 +179,25 @@ export async function sendSuccessEmail(
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
   /* ── live UPS location (free) ─────────────────────────────── */
-  const trackingNumber = "990728071"; // ← hard‑coded
+  const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapSection = "";
 
   if (mapsKey) {
-    const loc = await getUPSLocation(trackingNumber); // AfterShip removed
-    if (loc) {
-      const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=6&markers=color:red|${loc.marker}&key=${mapsKey}`;
+    const loc = await getUPSLocation(trackingNumber); // may return null
+    const marker = loc?.marker ?? FALLBACK_MARKER;
+    const label = loc?.label ?? FALLBACK_LABEL;
 
-      mapSection = `
+    /* always show a map – fallback if UPS returned nothing */
+    const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
+    mapSection = `
         <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
         <a href="${trackBaseUrl}" target="_blank" style="text-decoration:none;border:0">
           <img src="${staticUrl}"
-               alt="Package current location: ${loc.label}"
+               alt="Package current location: ${label}"
                style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
         </a>`;
-    }
   }
 
   /* ---------- items table ---------- */
