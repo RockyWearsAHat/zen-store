@@ -14,9 +14,3 @@
 
 [functions]
   directory = "dist/server"   # ← compiled functions live here
-
-[[plugins]]
-  package = "netlify-plugin-cancel-previous-deploys"
-
-[plugins.inputs]
-  keep_last = 1 
