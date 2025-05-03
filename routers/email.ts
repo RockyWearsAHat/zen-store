@@ -101,7 +101,8 @@ async function getUPSLocation(
     /* 2️⃣  Tracking details */
     const trackRes = await fetch(
       `https://${
-        !process.env["VITE"] ? `onlinetools` : `wwwcie`
+        // !process.env["VITE"] ? `onlinetools` : `wwwcie`
+        "wwwcie"
       }.ups.com/api/track/v1/details/${trk}`,
       {
         headers: {
