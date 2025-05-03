@@ -163,6 +163,7 @@ export async function sendSuccessEmail(
   const brand =
     paymentMethod?.card?.brand?.replaceAll("_", " ").toUpperCase() ?? "CARD";
   const iconUrl = cardIconUrl(brand);
+  const iconCid = "card-icon@zen"; // <‑‑ new cid
   const last4 = paymentMethod?.card?.last4 ?? "XXXX";
 
   let shipping: ShippingInfo =
@@ -183,35 +184,14 @@ export async function sendSuccessEmail(
   const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
-  let mapSection = "";
+  const mapSection = ""; // images removed
 
-  if (mapsKey) {
-    const loc = await getUPSLocation(trackingNumber); // may return null
-    const marker = loc?.marker ?? FALLBACK_MARKER;
-    const label = loc?.label ?? FALLBACK_LABEL;
-
-    /* always show a map – fallback if UPS returned nothing */
-    const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
-    mapSection = `
-        <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-        <a href="${trackBaseUrl}" target="_blank" style="text-decoration:none;border:0">
-          <img src="${staticUrl}"
-               alt="Package current location: ${label}"
-               style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
-        </a>`;
-  }
-
-  /* ---------- items table ---------- */
-  const webUrl = (process.env.WEB_URL || "").replace(/\/+$/, "");
+  /* ---------- items table (text only, no images) ---------- */
   const rows = parsed
     .map(
       (i) => `
       <tr>
-        <td style="text-align:left">
-          <img src="${webUrl}/Main.avif" alt="${i.id}"
-               style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;display:inline-block;border:none;outline:none;text-decoration:none;" />
-          ${i.id}
-        </td>
+        <td style="text-align:left">${i.id}</td>
         <td style="text-align:right">${i.quantity}</td>
       </tr>`
     )
@@ -272,10 +252,10 @@ export async function sendSuccessEmail(
           <div>
             ${
               iconUrl
-                ? `<img src="${iconUrl}"
+                ? `<img src="cid:${iconCid}"
                         alt="${brand} logo"
                         height="15"
-                        style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
+                        style="width:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
                 : ""
             }
             <span>•••• ${last4}</span>
@@ -285,9 +265,6 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
-    <!-- live‑location map (if available) -->
-    ${mapSection}
-
     <p style="margin-top:24px">
       Track your package any time here:
       <a href="${trackBaseUrl}">Track&nbsp;Order</a>
@@ -295,15 +272,42 @@ export async function sendSuccessEmail(
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
 
-  console.log(to, html);
+  /* ---------- plain‑text fallback ---------- */
+  const text = `
+Thank you for your purchase!
+Order #: ${orderNumber}
+Total: ${money(total)}
 
-  html = container("<h1>Zen Essentials</h1>");
+Shipped To:
+${shipping?.name ?? ""}
+${addr.line1 ?? ""} ${addr.line2 ?? ""}
+${addr.city ?? ""}, ${addr.state ?? ""} ${addr.postal_code ?? ""}
+${addr.country ?? ""}
+
+We appreciate your business!
+`.trim();
+
+  /* ---------- inline attachments ---------- */
+  const attachments = iconUrl
+    ? [
+        {
+          filename: `${brand}.png`,
+          path: iconUrl, // nodemailer fetches & embeds
+          cid: iconCid,
+        },
+      ]
+    : [];
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to,
     subject: "Your Zen Essentials order is confirmed",
     html,
+    text, // plain‑text part
+    attachments,
+    headers: {
+      "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
+    },
   });
 }
 
@@ -314,13 +318,13 @@ export async function sendFailureEmail(
   const html = container(`
     <h2 style="color:#b91c1c">We’re sorry – your payment did not go through.</h2>
     <p>
-      Unfortunately there was an error processing order
+      Unfortunately there was an error processing your order
       <strong>${intent.id}</strong>.
     </p>
     <p>
       Your items are <strong>not</strong> on the way.  
       Please try again or contact support at
-      <a href="mailto:support@zen‑essentials.example">support@zen‑essentials.example</a>.
+      <a href="mailto:support@zen‑essentials.store">support@zen‑essentials.store</a>.
     </p>
   `);
 
