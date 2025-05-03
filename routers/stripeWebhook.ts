@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import bodyParser from "body-parser";
+import express from "express";
 import Stripe from "stripe";
 import "dotenv/config";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js"; // <- extension added
@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 // raw body required for webhook sig verification
 router.post(
   "/",
-  bodyParser.raw({ type: "application/json" }),
+  express.raw({ type: "application/json" }), // ← swap in‑house parser
   async (req: Request, res: Response): Promise<void> => {
     const sig = req.headers["stripe-signature"] as string;
     let event: Stripe.Event;

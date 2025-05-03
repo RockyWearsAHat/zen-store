@@ -28,6 +28,8 @@ if (process.env !== undefined && process.env["VITE"]) {
     const frontendFiles = process.cwd() + "/dist/";
     app.use(express.static(frontendFiles));
 
+    app.use("/api/webhook", stripeWebhookRouter);
+
     app.get("/{*splat}", (_: Request, res: Response) => {
       res.sendFile("index.html", { root: frontendFiles });
     });
