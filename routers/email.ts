@@ -75,65 +75,8 @@ interface ShippingInfo {
   };
 }
 
-/* ─── UPS helper – returns last checkpoint as { label, marker } ─── */
-// async function getUPSLocation(
-//   trk: string
-// ): Promise<{ label: string; marker: string } | null> {
-//   const id = process.env.UPS_CLIENT_ID;
-//   const secret = process.env.UPS_CLIENT_SECRET;
-//   if (!id || !secret) return null;
-
-//   try {
-//     /* 1️⃣  OAuth token – client‑credentials */
-//     const tokenRes = await fetch(
-//       "https://onlinetools.ups.com/security/v1/oauth/token",
-//       {
-//         method: "POST",
-//         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-//         body: `grant_type=client_credentials&client_id=${id}&client_secret=${secret}`,
-//       }
-//     );
-//     if (!tokenRes.ok) throw new Error("UPS token fetch failed");
-//     const { access_token } = (await tokenRes.json()) as {
-//       access_token: string;
-//     };
-
-//     /* 2️⃣  Tracking details */
-//     const trackRes = await fetch(
-//       `https://${
-//         // !process.env["VITE"] ? `onlinetools` : `wwwcie`
-//         "wwwcie"
-//       }.ups.com/api/track/v1/details/${trk}`,
-//       {
-//         headers: {
-//           Authorization: `Bearer ${access_token}`,
-//           transId: trk,
-//           transactionSrc: "ZenEssentials",
-//         },
-//       }
-//     );
-//     if (!trackRes.ok) throw new Error("UPS track fetch failed");
-//     const data: any = await trackRes.json();
-
-//     const act =
-//       data?.trackResponse?.shipment?.[0]?.package?.[0]?.activity?.[0] ?? null; // latest
-//     const addr = act?.location?.address ?? {};
-//     const label = [addr.city, addr.stateProvince, addr.country]
-//       .filter(Boolean)
-//       .join(", ");
-//     if (!label) return null;
-
-//     return { label, marker: encodeURIComponent(label) };
-//   } catch (err) {
-//     console.error("UPS tracking error:", err);
-//     return null;
-//   }
-// }
-
 /* ---------- constants ---------- */
 const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay live
-// const FALLBACK_LABEL = "United States"; // generic label for fallback
-// const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795"); // US centroid
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -163,8 +106,20 @@ export async function sendSuccessEmail(
   const brand =
     paymentMethod?.card?.brand?.replaceAll("_", " ").toUpperCase() ?? "CARD";
   const iconUrl = cardIconUrl(brand);
-  const iconCid = "card-icon@zen"; // <‑‑ new cid
-  const last4 = paymentMethod?.card?.last4 ?? "XXXX";
+  const iconCid = "card-icon@zen";
+
+  /* ---------- inline attachments (logo + products) ---------- */
+  const attachments: { filename: string; path: string; cid: string }[] = [];
+  if (iconUrl) {
+    attachments.push({
+      filename: `${brand}.png`,
+      path: iconUrl, // fetched & embedded by Nodemailer
+      cid: iconCid,
+    });
+  }
+
+  /* base url for product images */
+  const webUrl = (process.env.WEB_URL || "").replace(/\/+$/, "");
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -180,21 +135,34 @@ export async function sendSuccessEmail(
   const orderNumber =
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
+  let test = 1;
+  if (test) {
+    console.log("test");
+  }
+
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
-  // const mapsKey = process.env.GOOGLE_MAPS_KEY;
-  // const mapSection = ""; // images removed
 
-  /* ---------- items table (text only, no images) ---------- */
+  /* ---------- items table (now with inline product images) ---------- */
   const rows = parsed
-    .map(
-      (i) => `
+    .map((item, idx) => {
+      const prodCid = `product-${idx}@zen`; // unique cid per row
+      attachments.push({
+        filename: `${item.id}.avif`,
+        path: `${webUrl}/Main.avif`, // your product image
+        cid: prodCid,
+      });
+      return `
       <tr>
-        <td style="text-align:left">${i.id}</td>
-        <td style="text-align:right">${i.quantity}</td>
-      </tr>`
-    )
+        <td style="text-align:left">
+          <img src="cid:${prodCid}" alt="${item.id}"
+               style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;display:inline-block;border:none;outline:none;" />
+          ${item.id}
+        </td>
+        <td style="text-align:right">${item.quantity}</td>
+      </tr>`;
+    })
     .join("");
 
   console.log(addr);
@@ -258,7 +226,7 @@ export async function sendSuccessEmail(
                         style="width:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
                 : ""
             }
-            <span>•••• ${last4}</span>
+            <span>•••• ${paymentMethod?.card?.last4 ?? "XXXX"}</span>
           </div>
         </td>
       </tr>
@@ -287,24 +255,13 @@ ${addr.country ?? ""}
 We appreciate your business!
 `.trim();
 
-  /* ---------- inline attachments ---------- */
-  const attachments = iconUrl
-    ? [
-        {
-          filename: `${brand}.png`,
-          path: iconUrl, // nodemailer fetches & embeds
-          cid: iconCid,
-        },
-      ]
-    : [];
-
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to,
     subject: "Your Zen Essentials order is confirmed",
     html,
     text, // plain‑text part
-    attachments,
+    attachments, // now includes logo + product images
     headers: {
       "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
     },
