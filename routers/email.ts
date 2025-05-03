@@ -220,7 +220,7 @@ export async function sendSuccessEmail(
   console.log(addr);
 
   /* ---------- html ---------- */
-  const html = container(`
+  let html = container(`
     <h2 style="color:#0f766e">Thank you for your purchase!</h2>
     <p>Your order #<strong>${orderNumber}</strong> is confirmed.</p>
 
@@ -296,6 +296,8 @@ export async function sendSuccessEmail(
   `);
 
   console.log(to, html);
+
+  html = container("<h1>Zen Essentials</h1>");
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
