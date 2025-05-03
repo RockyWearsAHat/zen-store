@@ -185,11 +185,11 @@ export async function sendSuccessEmail(
         iconUrl
           ? `<img src="${iconUrl}"
                   alt="${brand} logo"
-                  width="32" height="32"
-                  style="vertical-align:middle;margin-right:6px;border:none;outline:none;">`
+                  height="32"
+                  style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:6px;border:none;outline:none;">`
           : ""
       }
-      <span>${brand} ••••${last4}</span>
+      <span>••••${last4}</span>
     </div>
 
     <p style="margin-top:24px">
