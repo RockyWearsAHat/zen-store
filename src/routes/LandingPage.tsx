@@ -86,7 +86,7 @@ export default function LandingPage() {
             <p className="text-lg md:text-xl mb-8 max-w-xl ">
               Gentle water, soft light, and modern ceramic design—everything you
               need to turn your desk into a mini oasis. Breathe in, feel
-              tranquility wash over you, and let your productivity ripple.
+              tranquility wash over you, and let your productivity flow.
             </p>
             <Link
               // readability: dark text inside white button, turns inverse on hover

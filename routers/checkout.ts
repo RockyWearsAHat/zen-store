@@ -16,7 +16,7 @@ function generateOrderNumber() {
   const date = new Date()
     .toLocaleString("en-US", {
       timeZone: "America/Denver",
-      month: "numeric",
+      month: "2-digit",
       year: "numeric",
       day: "2-digit",
     })
@@ -24,7 +24,7 @@ function generateOrderNumber() {
 
   console.log(date);
 
-  const yyyymmdd = `${date[2]}${date[0]}${date[1]}`; // YYYYMMDD
+  const yyyymmdd = `${date[2].substring(2)}${date[0]}${date[1]}`; // YYMMDD
 
   const rand = Math.floor(Math.random() * 1000000);
   return `${yyyymmdd}${rand}`;
