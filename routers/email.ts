@@ -75,8 +75,65 @@ interface ShippingInfo {
   };
 }
 
+/* ─── UPS helper – returns last checkpoint as { label, marker } ─── */
+async function getUPSLocation(
+  trk: string
+): Promise<{ label: string; marker: string } | null> {
+  const id = process.env.UPS_CLIENT_ID;
+  const secret = process.env.UPS_CLIENT_SECRET;
+  if (!id || !secret) return null;
+
+  try {
+    /* 1️⃣  OAuth token – client‑credentials */
+    const tokenRes = await fetch(
+      "https://onlinetools.ups.com/security/v1/oauth/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=client_credentials&client_id=${id}&client_secret=${secret}`,
+      }
+    );
+    if (!tokenRes.ok) throw new Error("UPS token fetch failed");
+    const { access_token } = (await tokenRes.json()) as {
+      access_token: string;
+    };
+
+    /* 2️⃣  Tracking details */
+    const trackRes = await fetch(
+      `https://${
+        // !process.env["VITE"] ? `onlinetools` : `wwwcie`
+        "wwwcie"
+      }.ups.com/api/track/v1/details/${trk}`,
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          transId: trk,
+          transactionSrc: "ZenEssentials",
+        },
+      }
+    );
+    if (!trackRes.ok) throw new Error("UPS track fetch failed");
+    const data: any = await trackRes.json();
+
+    const act =
+      data?.trackResponse?.shipment?.[0]?.package?.[0]?.activity?.[0] ?? null; // latest
+    const addr = act?.location?.address ?? {};
+    const label = [addr.city, addr.stateProvince, addr.country]
+      .filter(Boolean)
+      .join(", ");
+    if (!label) return null;
+
+    return { label, marker: encodeURIComponent(label) };
+  } catch (err) {
+    console.error("UPS tracking error:", err);
+    return null;
+  }
+}
+
 /* ---------- constants ---------- */
 const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay live
+const FALLBACK_LABEL = "United States";
+const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -138,6 +195,30 @@ export async function sendSuccessEmail(
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
+
+  /* ─── static Google Maps image (embedded) ─── */
+  const mapsKey = process.env.GOOGLE_MAPS_KEY;
+  let mapHtml = "";
+  if (mapsKey) {
+    const loc = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
+    const marker = loc?.marker ?? FALLBACK_MARKER;
+    const label = loc?.label ?? FALLBACK_LABEL;
+
+    const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
+    const mapCid = "map@zen";
+    attachments.push({
+      filename: "map.png",
+      path: staticUrl, // nodemailer fetches & embeds
+      cid: mapCid,
+    });
+
+    mapHtml = `
+      <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
+      <img src="cid:${mapCid}"
+           alt="Package current location: ${label}"
+           style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
+    `;
+  }
 
   /* ---------- items table (now with inline product images) ---------- */
   const rows = parsed
@@ -228,6 +309,8 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
+    ${mapHtml} <!-- injected map -->
+
     <p style="margin-top:24px">
       Track your package any time here:
       <a href="${trackBaseUrl}">Track&nbsp;Order</a>
@@ -256,7 +339,7 @@ We appreciate your business!
     subject: "Your Zen Essentials order is confirmed",
     html,
     text, // plain‑text part
-    attachments, // now includes logo + product images
+    attachments, // now includes logo + product images + map
     headers: {
       "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
     },
