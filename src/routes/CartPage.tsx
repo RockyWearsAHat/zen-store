@@ -39,7 +39,7 @@ export default function CartPage() {
     const res = await fetch("/api/create-or-update-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body), // stringify back
     });
     if (!res.ok) {
       console.error("Failed syncing payment intent", await res.text());

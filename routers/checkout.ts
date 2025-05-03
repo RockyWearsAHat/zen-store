@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
+import { Buffer } from "node:buffer";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
 const catalogue: Record<string, { title: string; price: number }> = {
@@ -30,15 +31,25 @@ function generateOrderNumber() {
 }
 
 /* ---------- helpers (safe JSON parsing) ---------- */
-function toObject(maybeString: any): any {
-  if (typeof maybeString === "string") {
+function toObject(input: any): any {
+  // 1️⃣  Buffer → string
+  if (Buffer.isBuffer(input)) {
     try {
-      return JSON.parse(maybeString);
+      return JSON.parse(input.toString("utf8"));
     } catch {
-      return {}; // malformed JSON → empty object
+      return {};
     }
   }
-  return maybeString ?? {};
+  // 2️⃣  string → object
+  if (typeof input === "string") {
+    try {
+      return JSON.parse(input);
+    } catch {
+      return {};
+    }
+  }
+  // 3️⃣  already an object (normal express.json() case)
+  return input ?? {};
 }
 /* ----------------------------------------------- */
 
@@ -151,33 +162,18 @@ router.get("/test", (_req: Request, res: Response) => {
 //   }
 // });
 
-router.post("/create-or-update-payment-intent", (req, _res, next) => {
-  console.log("→ headers:", req.headers["content-type"]);
-  console.log("→ typeof body:", typeof req.body);
-  console.log("→ body slice:", String(req.body).slice(0, 200));
-  next(); // <‑‑ keep existing handler running
-});
-
 router.post(
   "/create-or-update-payment-intent",
   async (req: Request, res: Response) => {
-    // Netlify sometimes hands us a string – salvage it
-    const body = toObject(req.body);
-    /* 1️⃣  prefer body.items when it is an array
-       2️⃣  otherwise try to derive items from the whole body */
-    const items =
-      (Array.isArray(body.items) ? body.items : null) ??
-      parseItems(body) ??
-      null;
-
-    const testItems = JSON.parse(req.body).items || [];
+    const body = toObject(req.body); // robust – handles Buffer / string / obj
+    const items = Array.isArray(body.items)
+      ? body.items
+      : parseItems(body) ?? null;
 
     const { paymentIntentId, email, shipping } = body as any;
 
     if (!items || items.length === 0) {
-      res
-        .status(400)
-        .json({ error: "Missing or empty items array", testItems });
+      res.status(400).json({ error: "Missing or empty items array" });
       return;
     }
 
