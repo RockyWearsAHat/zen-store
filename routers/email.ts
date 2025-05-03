@@ -153,6 +153,7 @@ export async function sendSuccessEmail(
       <tbody>${rows}</tbody>
     </table>
 
+    <!-- restored receipt section -->
     <h3 style="margin-top:24px;margin-bottom:8px">Receipt</h3>
     <table style="width:100%;border-collapse:collapse">
       <tbody>
@@ -170,33 +171,43 @@ export async function sendSuccessEmail(
         )}</td></tr>
       </tbody>
     </table>
+    <!-- /restored receipt section -->
 
-    <h3 style="margin-top:24px;margin-bottom:8px">Shipping&nbsp;Address</h3>
-    <p style="text-align:right">
-      ${shipping?.name ?? ""}<br/>
-      ${addr.line1 ?? ""}${addr.line2 ? ", " + addr.line2 : ""}<br/>
-      ${addr.city ?? ""}, ${addr.postal_code ?? ""}<br/>
-      ${addr.state ?? ""} ${addr.country ?? ""}
-    </p>
-
-    <h3 style="margin-top:24px;margin-bottom:8px">Payment&nbsp;Method</h3>
-    <div style="text-align:right">
-      ${
-        iconUrl
-          ? `<img src="${iconUrl}"
-                  alt="${brand} logo"
-                  height="15"
-                  style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
-          : ""
-      }
-      <span>•••• ${last4}</span>
-    </div>
+    <!-- combined shipping + payment row -->
+    <table style="width:100%;border-collapse:collapse;margin-top:24px">
+      <tr>
+        <td style="text-align:left;vertical-align:top">
+          <h3 style="margin:0 0 8px 0">Shipped&nbsp;To</h3>
+          <p style="margin:0">
+            ${shipping?.name ?? ""}<br/>
+            ${addr.line1 ?? ""}${addr.line2 ? ", " + addr.line2 : ""}<br/>
+            ${addr.city ?? ""}, ${addr.postal_code ?? ""}<br/>
+            ${addr.state ?? ""} ${addr.country ?? ""}
+          </p>
+        </td>
+        <td style="text-align:right;vertical-align:top">
+          <h3 style="margin:0 0 8px 0">Paid&nbsp;With</h3>
+          <div>
+            ${
+              iconUrl
+                ? `<img src="${iconUrl}"
+                        alt="${brand} logo"
+                        height="15"
+                        style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
+                : ""
+            }
+            <span>${brand} •••• ${last4}</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <!-- /combined shipping + payment row -->
 
     <p style="margin-top:24px">
       Track your package any time here:
       <a href="https://zen‑essentials.example/track/${
         intent.id
-      }">Track Order</a>
+      }">Track&nbsp;Order</a>
     </p>
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
