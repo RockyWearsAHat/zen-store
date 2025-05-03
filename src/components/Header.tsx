@@ -9,7 +9,7 @@ export default function Header() {
   return (
     <header className="bg-brand text-gray-800 p-4 flex justify-between">
       <Link to="/" className="font-bold text-xl">
-        Zen Essentials (Ezentials)
+        Zen Essentials
       </Link>
       <nav className="flex items-center gap-6">
         <Link to="/cart" aria-label="Cart" className="relative text-gray-900">
