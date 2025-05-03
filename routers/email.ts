@@ -135,11 +135,6 @@ export async function sendSuccessEmail(
   const orderNumber =
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
-  let test = 1;
-  if (test) {
-    console.log("test");
-  }
-
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
