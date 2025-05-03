@@ -76,64 +76,64 @@ interface ShippingInfo {
 }
 
 /* ─── UPS helper – returns last checkpoint as { label, marker } ─── */
-async function getUPSLocation(
-  trk: string
-): Promise<{ label: string; marker: string } | null> {
-  const id = process.env.UPS_CLIENT_ID;
-  const secret = process.env.UPS_CLIENT_SECRET;
-  if (!id || !secret) return null;
+// async function getUPSLocation(
+//   trk: string
+// ): Promise<{ label: string; marker: string } | null> {
+//   const id = process.env.UPS_CLIENT_ID;
+//   const secret = process.env.UPS_CLIENT_SECRET;
+//   if (!id || !secret) return null;
 
-  try {
-    /* 1️⃣  OAuth token – client‑credentials */
-    const tokenRes = await fetch(
-      "https://onlinetools.ups.com/security/v1/oauth/token",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `grant_type=client_credentials&client_id=${id}&client_secret=${secret}`,
-      }
-    );
-    if (!tokenRes.ok) throw new Error("UPS token fetch failed");
-    const { access_token } = (await tokenRes.json()) as {
-      access_token: string;
-    };
+//   try {
+//     /* 1️⃣  OAuth token – client‑credentials */
+//     const tokenRes = await fetch(
+//       "https://onlinetools.ups.com/security/v1/oauth/token",
+//       {
+//         method: "POST",
+//         headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//         body: `grant_type=client_credentials&client_id=${id}&client_secret=${secret}`,
+//       }
+//     );
+//     if (!tokenRes.ok) throw new Error("UPS token fetch failed");
+//     const { access_token } = (await tokenRes.json()) as {
+//       access_token: string;
+//     };
 
-    /* 2️⃣  Tracking details */
-    const trackRes = await fetch(
-      `https://${
-        // !process.env["VITE"] ? `onlinetools` : `wwwcie`
-        "wwwcie"
-      }.ups.com/api/track/v1/details/${trk}`,
-      {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          transId: trk,
-          transactionSrc: "ZenEssentials",
-        },
-      }
-    );
-    if (!trackRes.ok) throw new Error("UPS track fetch failed");
-    const data: any = await trackRes.json();
+//     /* 2️⃣  Tracking details */
+//     const trackRes = await fetch(
+//       `https://${
+//         // !process.env["VITE"] ? `onlinetools` : `wwwcie`
+//         "wwwcie"
+//       }.ups.com/api/track/v1/details/${trk}`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${access_token}`,
+//           transId: trk,
+//           transactionSrc: "ZenEssentials",
+//         },
+//       }
+//     );
+//     if (!trackRes.ok) throw new Error("UPS track fetch failed");
+//     const data: any = await trackRes.json();
 
-    const act =
-      data?.trackResponse?.shipment?.[0]?.package?.[0]?.activity?.[0] ?? null; // latest
-    const addr = act?.location?.address ?? {};
-    const label = [addr.city, addr.stateProvince, addr.country]
-      .filter(Boolean)
-      .join(", ");
-    if (!label) return null;
+//     const act =
+//       data?.trackResponse?.shipment?.[0]?.package?.[0]?.activity?.[0] ?? null; // latest
+//     const addr = act?.location?.address ?? {};
+//     const label = [addr.city, addr.stateProvince, addr.country]
+//       .filter(Boolean)
+//       .join(", ");
+//     if (!label) return null;
 
-    return { label, marker: encodeURIComponent(label) };
-  } catch (err) {
-    console.error("UPS tracking error:", err);
-    return null;
-  }
-}
+//     return { label, marker: encodeURIComponent(label) };
+//   } catch (err) {
+//     console.error("UPS tracking error:", err);
+//     return null;
+//   }
+// }
 
 /* ---------- constants ---------- */
 const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay live
-const FALLBACK_LABEL = "United States"; // generic label for fallback
-const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795"); // US centroid
+// const FALLBACK_LABEL = "United States"; // generic label for fallback
+// const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795"); // US centroid
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -183,8 +183,8 @@ export async function sendSuccessEmail(
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
   const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
-  const mapsKey = process.env.GOOGLE_MAPS_KEY;
-  const mapSection = ""; // images removed
+  // const mapsKey = process.env.GOOGLE_MAPS_KEY;
+  // const mapSection = ""; // images removed
 
   /* ---------- items table (text only, no images) ---------- */
   const rows = parsed
