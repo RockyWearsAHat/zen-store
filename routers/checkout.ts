@@ -86,10 +86,6 @@ function parseItems(raw: unknown): { id: string; quantity: number }[] | null {
 
 const router = Router();
 
-router.get("/test", (_req: Request, res: Response) => {
-  res.json({ test: "hello from the test route" });
-});
-
 // router.post("/create-checkout-session", async (req, res) => {
 //   const items = JSON.parse(req.body).items || [];
 

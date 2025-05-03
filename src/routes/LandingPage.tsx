@@ -162,18 +162,6 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto mb-10 px-6 overflow-y-visible">
           <ReviewsCarousel />
         </div>
-
-        <button
-          style={{ backgroundColor: "white", color: "black" }}
-          onClick={async () => {
-            console.log("attempting to fetch");
-            const res = await fetch("/api/test");
-            const data = await res.json();
-            console.log(JSON.stringify(data, null, 2));
-          }}
-        >
-          Test button
-        </button>
       </section>
     </div>
   );
