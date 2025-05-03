@@ -37,27 +37,28 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-/* map card brand → remote icon (32 px PNGs) */
+/* map card brand → remote 32 px PNG (Gmail blocks SVG) */
 function cardIconUrl(brand: string): string | undefined {
+  const base = (process.env.WEB_URL || "").replace(/\/+$/, "");
   switch (brand.toUpperCase()) {
     case "AMEX":
-      return `${process.env.WEB_URL}/amex.svg`;
+      return `${base}/amex.png`;
     case "DINERS":
-      return `${process.env.WEB_URL}/diners.svg`;
+      return `${base}/diners.png`;
     case "DISCOVER":
-      return `${process.env.WEB_URL}/discover.svg`;
+      return `${base}/discover.png`;
     case "EFTPOS":
-      return `${process.env.WEB_URL}/eftpos.svg`;
+      return `${base}/eftpos.png`;
     case "JCB":
-      return `${process.env.WEB_URL}/jcb.svg`;
+      return `${base}/jcb.png`;
     case "MASTERCARD":
-      return `${process.env.WEB_URL}/mastercard.svg`;
+      return `${base}/mastercard.png`;
     case "UNIONPAY":
-      return `${process.env.WEB_URL}/unionpay.svg`;
+      return `${base}/unionpay.png`;
     case "VISA":
-      return `${process.env.WEB_URL}/visa.svg`;
+      return `${base}/visa.png`;
     default:
-      return; // fall back to plain text
+      return; // fallback to plain text
   }
 }
 
