@@ -163,16 +163,26 @@ router.post(
   async (req: Request, res: Response) => {
     // Netlify sometimes hands us a string – salvage it
     const body = toObject(req.body);
-    const items = parseItems(body?.items ?? body);
+    /* 1️⃣  prefer body.items when it is an array
+       2️⃣  otherwise try to derive items from the whole body */
+    const items =
+      (Array.isArray(body.items) ? body.items : null) ??
+      parseItems(body) ??
+      null;
+
+    const testItems = JSON.parse(req.body).items || [];
+
     const { paymentIntentId, email, shipping } = body as any;
 
     if (!items || items.length === 0) {
-      res.status(400).json({ error: "Missing or empty items array" });
+      res
+        .status(400)
+        .json({ error: "Missing or empty items array", testItems });
       return;
     }
 
     // use catalogue prices, ignore anything coming from client
-    const subtotal = items.reduce((sum, i) => {
+    const subtotal = items.reduce((sum: number, i: any) => {
       const product = catalogue[i.id];
       return product ? sum + product.price * i.quantity : sum;
     }, 0);
