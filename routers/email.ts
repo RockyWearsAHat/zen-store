@@ -185,7 +185,7 @@ export async function sendSuccessEmail(
         iconUrl
           ? `<img src="${iconUrl}"
                   alt="${brand} logo"
-                  height="32"
+                  height="24"
                   style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:6px;border:none;outline:none;">`
           : ""
       }
