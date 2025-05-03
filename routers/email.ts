@@ -172,19 +172,19 @@ export async function sendSuccessEmail(
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
   /* ── live UPS location (free) ─────────────────────────────── */
-  const trackingNumber = intent.metadata?.tracking_number as string | undefined;
+  const trackingNumber = "990728071"; // ← hard‑coded
+  const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapSection = "";
 
-  if (trackingNumber && mapsKey) {
-    const loc = await getUPSLocation(trackingNumber);
+  if (mapsKey) {
+    const loc = await getUPSLocation(trackingNumber); // AfterShip removed
     if (loc) {
       const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=6&markers=color:red|${loc.marker}&key=${mapsKey}`;
-      const trackUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
 
       mapSection = `
         <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-        <a href="${trackUrl}" target="_blank" style="text-decoration:none;border:0">
+        <a href="${trackBaseUrl}" target="_blank" style="text-decoration:none;border:0">
           <img src="${staticUrl}"
                alt="Package current location: ${loc.label}"
                style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
@@ -281,9 +281,7 @@ export async function sendSuccessEmail(
 
     <p style="margin-top:24px">
       Track your package any time here:
-      <a href="https://track.aftership.com/${trackingNumber ?? ""}">
-        Track&nbsp;Order
-      </a>
+      <a href="${trackBaseUrl}">Track&nbsp;Order</a>
     </p>
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
