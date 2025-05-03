@@ -80,7 +80,7 @@ export async function sendSuccessEmail(
   intent: Stripe.PaymentIntent,
   to: string,
   chargeParam?: Stripe.Charge,
-  paymentMethod?: Stripe.PaymentMethod | null // ← new
+  paymentMethod?: Stripe.PaymentMethod | null
 ): Promise<void> {
   const {
     subtotal = 0,
@@ -96,7 +96,7 @@ export async function sendSuccessEmail(
   /* ── resolve charge object ── */
   const charge =
     chargeParam ??
-    ((intent as any).charges?.data?.slice(-1)[0] as Stripe.Charge | undefined); // ← new fallback
+    ((intent as any).charges?.data?.slice(-1)[0] as Stripe.Charge | undefined);
 
   console.log(paymentMethod);
 
@@ -118,6 +118,16 @@ export async function sendSuccessEmail(
   // We'll check for metadata.order_number first:
   const orderNumber =
     (intent.metadata && intent.metadata.order_number) || intent.id;
+
+  /* tracking number → map embed */
+  const trackingNumber = "020207021381215";
+  const mapEmbed = trackingNumber
+    ? `<h3 style="margin-top:24px;margin-bottom:8px">Package&nbsp;Location</h3>
+       <iframe src="https://track.aftership.com/${encodeURIComponent(
+         trackingNumber
+       )}?embed=true"
+               style="width:100%;max-width:600px;height:320px;border:none;"></iframe>`
+    : "";
 
   /* ---------- items table ---------- */
   const webUrl = (process.env.WEB_URL || "").replace(/\/+$/, "");
@@ -196,12 +206,15 @@ export async function sendSuccessEmail(
                         style="width:auto;aspect-ratio:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
                 : ""
             }
-            <span>${brand} •••• ${last4}</span>
+            <span>•••• ${last4}</span>
           </div>
         </td>
       </tr>
     </table>
     <!-- /combined shipping + payment row -->
+
+    <!-- tracking map (if available) -->
+    ${mapEmbed}
 
     <p style="margin-top:24px">
       Track your package any time here:
