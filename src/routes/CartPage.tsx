@@ -7,7 +7,11 @@ import { useEffect, useState } from "react";
 import CheckoutForm from "../components/CheckoutForm";
 
 // helpers for localStorage
-const getPaymentIntentId = () => localStorage.getItem("paymentIntentId");
+/* guard against the literal string "undefined" leaking into Stripe */
+const getPaymentIntentId = () => {
+  const v = localStorage.getItem("paymentIntentId");
+  return v && v !== "undefined" ? v : null;
+};
 
 export default function CartPage() {
   const { items, subtotal, removeItem, updateQuantity } = useCart();
@@ -25,23 +29,27 @@ export default function CartPage() {
     const itemsPayload = Array.isArray(items)
       ? items.map(({ id, quantity }) => ({ id, quantity }))
       : [];
+    const body: Record<string, any> = {
+      items: itemsPayload,
+      email, // always send email
+      shipping, // may be null
+    };
+    if (paymentIntentId) body.paymentIntentId = paymentIntentId; // only when valid
+
     const res = await fetch("/api/create-or-update-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items: itemsPayload,
-        paymentIntentId,
-        email, // always send email
-        shipping, // ← pass shipping
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       console.error("Failed syncing payment intent", await res.text());
       return;
     }
     const { id, clientSecret } = await res.json();
-    localStorage.setItem("paymentIntentId", id);
-    setPaymentIntentId(id);
+    if (id) {
+      localStorage.setItem("paymentIntentId", id);
+      setPaymentIntentId(id);
+    }
     setClientSecret(clientSecret);
   };
 
