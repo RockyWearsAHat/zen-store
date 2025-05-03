@@ -119,15 +119,38 @@ export async function sendSuccessEmail(
   const orderNumber =
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
-  /* tracking number → map embed */
-  const trackingNumber = "020207021381215";
-  const mapEmbed = trackingNumber
-    ? `<h3 style="margin-top:24px;margin-bottom:8px">Package&nbsp;Location</h3>
-       <iframe src="https://track.aftership.com/${encodeURIComponent(
-         trackingNumber
-       )}?embed=true"
-               style="width:100%;max-width:600px;height:320px;border:none;"></iframe>`
-    : "";
+  /* ── tracking / static‑map embed ─────────────────────────── */
+  const trackingNumber: string | undefined =
+    intent.metadata?.tracking_number || undefined; // add this to metadata upstream
+  const addressStr = [
+    addr.line1,
+    addr.city,
+    addr.state,
+    addr.postal_code,
+    addr.country,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const googleKey = process.env.GOOGLE_MAPS_KEY;
+
+  let mapSection = "";
+  if (googleKey && (trackingNumber || addressStr)) {
+    const marker = encodeURIComponent(
+      trackingNumber ? trackingNumber : addressStr
+    );
+    const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&markers=color:blue|${marker}&key=${googleKey}`;
+    const clickUrl = trackingNumber
+      ? `https://track.aftership.com/${encodeURIComponent(trackingNumber)}`
+      : `https://www.google.com/maps/search/?api=1&query=${marker}`;
+
+    mapSection = `
+      <h3 style="margin-top:24px;margin-bottom:8px">Package&nbsp;Location</h3>
+      <a href="${clickUrl}" target="_blank" style="text-decoration:none;border:0">
+        <img src="${mapUrl}"
+             alt="Package location map"
+             style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
+      </a>`;
+  }
 
   /* ---------- items table ---------- */
   const webUrl = (process.env.WEB_URL || "").replace(/\/+$/, "");
@@ -213,13 +236,15 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
-    <!-- tracking map (if available) -->
-    ${mapEmbed}
+    <!-- tracking map (static image, Gmail‑safe) -->
+    ${mapSection}
 
     <p style="margin-top:24px">
       Track your package any time here:
-      <a href="https://zen‑essentials.example/track/${
-        intent.id
+      <a href="${
+        trackingNumber
+          ? `https://track.aftership.com/${encodeURIComponent(trackingNumber)}`
+          : `https://zen‑essentials.example/track/${intent.id}`
       }">Track&nbsp;Order</a>
     </p>
     <p style="margin-top:24px">We appreciate your business!</p>
