@@ -75,6 +75,58 @@ interface ShippingInfo {
   };
 }
 
+/* ─── UPS helper – returns last checkpoint as { label, marker } ─── */
+async function getUPSLocation(
+  trk: string
+): Promise<{ label: string; marker: string } | null> {
+  const id = process.env.UPS_CLIENT_ID;
+  const secret = process.env.UPS_CLIENT_SECRET;
+  if (!id || !secret) return null;
+
+  try {
+    /* 1️⃣  OAuth token – client‑credentials */
+    const tokenRes = await fetch(
+      "https://onlinetools.ups.com/security/v1/oauth/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=client_credentials&client_id=${id}&client_secret=${secret}`,
+      }
+    );
+    if (!tokenRes.ok) throw new Error("UPS token fetch failed");
+    const { access_token } = (await tokenRes.json()) as {
+      access_token: string;
+    };
+
+    /* 2️⃣  Tracking details */
+    const trackRes = await fetch(
+      `https://onlinetools.ups.com/api/track/v1/details/${trk}`,
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          transId: trk,
+          transactionSrc: "ZenEssentials",
+        },
+      }
+    );
+    if (!trackRes.ok) throw new Error("UPS track fetch failed");
+    const data: any = await trackRes.json();
+
+    const act =
+      data?.trackResponse?.shipment?.[0]?.package?.[0]?.activity?.[0] ?? null; // latest
+    const addr = act?.location?.address ?? {};
+    const label = [addr.city, addr.stateProvince, addr.country]
+      .filter(Boolean)
+      .join(", ");
+    if (!label) return null;
+
+    return { label, marker: encodeURIComponent(label) };
+  } catch (err) {
+    console.error("UPS tracking error:", err);
+    return null;
+  }
+}
+
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
   intent: Stripe.PaymentIntent,
@@ -119,37 +171,25 @@ export async function sendSuccessEmail(
   const orderNumber =
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
-  /* ── tracking / static‑map embed ─────────────────────────── */
-  const trackingNumber: string | undefined =
-    intent.metadata?.tracking_number || undefined; // add this to metadata upstream
-  const addressStr = [
-    addr.line1,
-    addr.city,
-    addr.state,
-    addr.postal_code,
-    addr.country,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const googleKey = process.env.GOOGLE_MAPS_KEY;
-
+  /* ── live UPS location (free) ─────────────────────────────── */
+  const trackingNumber = intent.metadata?.tracking_number as string | undefined;
+  const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapSection = "";
-  if (googleKey && (trackingNumber || addressStr)) {
-    const marker = encodeURIComponent(
-      trackingNumber ? trackingNumber : addressStr
-    );
-    const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&markers=color:blue|${marker}&key=${googleKey}`;
-    const clickUrl = trackingNumber
-      ? `https://track.aftership.com/${encodeURIComponent(trackingNumber)}`
-      : `https://www.google.com/maps/search/?api=1&query=${marker}`;
 
-    mapSection = `
-      <h3 style="margin-top:24px;margin-bottom:8px">Package&nbsp;Location</h3>
-      <a href="${clickUrl}" target="_blank" style="text-decoration:none;border:0">
-        <img src="${mapUrl}"
-             alt="Package location map"
-             style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
-      </a>`;
+  if (trackingNumber && mapsKey) {
+    const loc = await getUPSLocation(trackingNumber);
+    if (loc) {
+      const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=6&markers=color:red|${loc.marker}&key=${mapsKey}`;
+      const trackUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
+
+      mapSection = `
+        <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
+        <a href="${trackUrl}" target="_blank" style="text-decoration:none;border:0">
+          <img src="${staticUrl}"
+               alt="Package current location: ${loc.label}"
+               style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
+        </a>`;
+    }
   }
 
   /* ---------- items table ---------- */
@@ -236,16 +276,14 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
-    <!-- tracking map (static image, Gmail‑safe) -->
+    <!-- live‑location map (if available) -->
     ${mapSection}
 
     <p style="margin-top:24px">
       Track your package any time here:
-      <a href="${
-        trackingNumber
-          ? `https://track.aftership.com/${encodeURIComponent(trackingNumber)}`
-          : `https://zen‑essentials.example/track/${intent.id}`
-      }">Track&nbsp;Order</a>
+      <a href="https://track.aftership.com/${trackingNumber ?? ""}">
+        Track&nbsp;Order
+      </a>
     </p>
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
