@@ -199,8 +199,9 @@ export async function sendSuccessEmail(
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapHtml = "";
+  let loc: any = "test";
   if (mapsKey) {
-    const loc = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
+    loc = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
     const marker = loc?.marker ?? FALLBACK_MARKER;
     const label = loc?.label ?? FALLBACK_LABEL;
 
@@ -309,6 +310,8 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
+    ${loc?.marker ? loc?.marker : loc}
+    ${loc?.label ? loc?.label : loc}
     ${mapHtml} <!-- injected map -->
 
     <p style="margin-top:24px">
