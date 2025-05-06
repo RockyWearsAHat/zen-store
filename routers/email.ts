@@ -224,21 +224,22 @@ export async function sendSuccessEmail(
     `;
   }
 
-  /* ---------- items table (now with inline product images) ---------- */
+  /* ---------- items table (now with wrapper-clipped thumbnails) ---------- */
   const rows = parsed
     .map((item, idx) => {
-      const prodCid = `product-${idx}@zen`; // unique cid per row
+      const prodCid = `product-${idx}@zen`;
       attachments.push({
         filename: `${item.id}.avif`,
-        path: `${webUrl}/Main.avif`, // your product image
+        path: `${webUrl}/Main.avif`,
         cid: prodCid,
       });
       return `
       <tr>
         <td style="text-align:left">
-          <img src="cid:${prodCid}" alt="${item.id}"
-               width="40" height="40"
-               style="border-radius:6px;margin-right:8px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
+          <span style="display:inline-block;width:40px;height:40px;overflow:hidden;border-radius:6px;margin-right:8px;vertical-align:middle;">
+            <img src="cid:${prodCid}" alt="${item.id}"
+                 style="width:100%;height:100%;display:block;border:0;outline:0;" />
+          </span>
           ${item.id}
         </td>
         <td style="text-align:right">${item.quantity}</td>
@@ -314,9 +315,8 @@ export async function sendSuccessEmail(
     </table>
     <!-- /combined shipping + payment row -->
 
-    ${loc?.marker ? loc?.marker : loc}
-    ${loc?.label ? loc?.label : loc}
-    ${mapHtml} <!-- injected map -->
+    ${mapHtml}
+    <!-- removed debug output of loc.marker / loc.label -->
 
     <p style="margin-top:24px">
       Track your package any time here:
