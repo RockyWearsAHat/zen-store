@@ -223,7 +223,7 @@ export async function sendSuccessEmail(
     `;
   }
 
-  /* ---------- items table (better spacing / alignment) ---------- */
+  /* ---------- items table (final alignment tweak) ---------- */
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
@@ -237,8 +237,8 @@ export async function sendSuccessEmail(
         <td style="padding:4px 0;vertical-align:middle;">
           <img src="cid:${prodCid}" alt="${item.id}"
                width="40" height="40"
-               style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
-          ${item.id}
+               style="width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
+          <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${item.id}</span>
         </td>
         <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${item.quantity}</td>
       </tr>`;
