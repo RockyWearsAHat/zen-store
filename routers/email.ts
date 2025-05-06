@@ -231,9 +231,8 @@ export async function sendSuccessEmail(
     });
 
     mapHtml = `
-      <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"
-             width="100%" style="border-collapse:collapse;margin:0;">
+             style="width:100%;border-collapse:collapse;margin:0;">
         <tr>
           <td style="padding:0;text-align:left;">
             <img src="cid:${mapCid}" alt="Package current location: ${label}"
@@ -281,12 +280,11 @@ export async function sendSuccessEmail(
     <h2 style="color:#0f766e">Thank you for your purchase!</h2>
     <p>Your order #<strong>${orderNumber}</strong> is confirmed.</p>
 
-    <h3 style="margin-top:24px;margin-bottom:8px">Items</h3>
-    <table style="width:100%;border-collapse:collapse">
+    <table style="width:100%;border-collapse:collapse;margin-top:24px">
       <tbody>
         <tr>
-          <td style="text-align:left;padding-bottom:4px;">Items</td>
-          <td style="text-align:right;padding-bottom:4px;width:48px;">Qty</td>
+          <td style="text-align:left;padding-bottom:4px;"><h3>Items</h3></td>
+          <td style="text-align:right;padding-bottom:4px;width:48px;"><h3>Qty</h3></td>
         </tr>
         ${rows}
       </tbody>
