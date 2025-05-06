@@ -2,7 +2,6 @@ import nodemailer from "nodemailer";
 import Stripe from "stripe";
 import "dotenv/config";
 import path from "path";
-import fs from "fs";
 
 /* ─── SMTP transport───────────────────────────────────────── */
 const transporter = nodemailer.createTransport({
@@ -148,8 +147,6 @@ const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
 /* absolute path to the on-disk product thumbnail (no remote fetch) */
 const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
-/* base64-encoded thumbnail – eliminates CID issues in Apple Mail */
-const MAIN_IMG_BASE64 = fs.readFileSync(MAIN_IMG_PATH).toString("base64");
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -199,10 +196,14 @@ export async function sendSuccessEmail(
     });
   }
 
-  /* base url for product images – always absolute, fallback to site root */
-  // const webUrl = (
-  //   process.env.WEB_URL || "https://zen-essentials.store"
-  // ).replace(/\/+$/, "");
+  const productImgCid = "product-thumb@zen";
+  attachments.push({
+    filename: "Main.png",
+    path: MAIN_IMG_PATH,
+    cid: productImgCid,
+    contentDisposition: "inline",
+    contentType: "image/png",
+  });
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -264,7 +265,7 @@ export async function sendSuccessEmail(
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <img src="data:image/png;base64,${MAIN_IMG_BASE64}" alt="${name}"
+                  <img src="cid:${productImgCid}" alt="${name}"
                        width="40" height="40"
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
