@@ -196,6 +196,16 @@ export async function sendSuccessEmail(
     });
   }
 
+  /* add the product thumbnail once (same strategy as card/logo/map) */
+  const productImgCid = "product-thumb@zen";
+  attachments.push({
+    filename: "Main.png",
+    path: MAIN_IMG_PATH,
+    cid: productImgCid,
+    contentDisposition: "inline",
+    contentType: "image/png",
+  });
+
   /* base url for product images – always absolute, fallback to site root */
   // const webUrl = (
   //   process.env.WEB_URL || "https://zen-essentials.store"
@@ -252,18 +262,7 @@ export async function sendSuccessEmail(
 
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
   const rows = parsed
-    .map((item, idx) => {
-      const prodCid = `product-${idx}@zen`;
-
-      /* Attach the local PNG directly – no remote fetch */
-      attachments.push({
-        filename: `product-${idx}.png`,
-        path: MAIN_IMG_PATH,
-        cid: prodCid,
-        contentDisposition: "inline",
-        contentType: "image/png",
-      });
-
+    .map((item) => {
       const name = (item as any).title ?? item.id;
 
       return `
@@ -272,7 +271,7 @@ export async function sendSuccessEmail(
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <img src="cid:${prodCid}" alt="${name}"
+                  <img src="cid:${productImgCid}" alt="${name}"
                        width="40" height="40"
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
