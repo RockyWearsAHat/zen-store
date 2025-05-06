@@ -215,32 +215,25 @@ export async function sendSuccessEmail(
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapHtml = "";
-  let loc: any = "test";
   if (mapsKey) {
-    loc = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
-    const marker = loc?.marker ?? FALLBACK_MARKER;
-    const label = loc?.label ?? FALLBACK_LABEL;
+    const locRes = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
+    const marker = locRes?.marker ?? FALLBACK_MARKER;
+    const label = locRes?.label ?? FALLBACK_LABEL;
 
-    const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
-    const mapCid = "map@zen";
-    attachments.push({
-      filename: "map.png",
-      path: staticUrl, // nodemailer fetches & embeds
-      cid: mapCid,
-      contentDisposition: "inline",
-    });
+    const staticUrl =
+      `https://maps.googleapis.com/maps/api/staticmap` +
+      `?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
 
     mapHtml = `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"
-             style="width:100%;border-collapse:collapse;margin:0;">
+             style="width:100%;border-collapse:collapse;margin:24px 0 0 0;">
         <tr>
           <td style="padding:0;text-align:left;">
-            <img src="cid:${mapCid}" alt="Package current location: ${label}"
-                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;margin:0;">
+            <img src="${staticUrl}" alt="Package current location: ${label}"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;">
           </td>
         </tr>
-      </table>
-    `;
+      </table>`;
   }
 
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
