@@ -196,14 +196,7 @@ export async function sendSuccessEmail(
     });
   }
 
-  const productImgCid = "product-thumb@zen";
-  attachments.push({
-    filename: "Main.png",
-    path: MAIN_IMG_PATH,
-    cid: productImgCid,
-    contentDisposition: "inline",
-    contentType: "image/png",
-  });
+  // (per-item thumbnails will be added inside the table-row loop)
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -256,7 +249,16 @@ export async function sendSuccessEmail(
 
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
   const rows = parsed
-    .map((item) => {
+    .map((item, idx) => {
+      const prodCid = `product-${idx}@zen`;
+      // attach once per item (unique filename prevents Apple Mail deduping)
+      attachments.push({
+        filename: `product-${idx}.png`,
+        path: MAIN_IMG_PATH,
+        cid: prodCid,
+        contentDisposition: "inline",
+        contentType: "image/png",
+      });
       const name = (item as any).title ?? item.id;
 
       return `
@@ -265,7 +267,7 @@ export async function sendSuccessEmail(
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <img src="cid:${productImgCid}" alt="${name}"
+                  <img src="cid:${prodCid}" alt="${name}"
                        width="40" height="40"
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
