@@ -190,8 +190,10 @@ export async function sendSuccessEmail(
     });
   }
 
-  /* base url for product images */
-  const webUrl = (process.env.WEB_URL || "").replace(/\/+$/, "");
+  /* base url for product images – always absolute, fallback to site root */
+  const webUrl = (
+    process.env.WEB_URL || "https://zen-essentials.store"
+  ).replace(/\/+$/, "");
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -246,15 +248,18 @@ export async function sendSuccessEmail(
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
+
+      /* absolute PNG url ( e.g. https://zen-essentials.store/desktop-fountain.png ) */
+      const imgUrl = `${webUrl}/${item.id}.png`;
+
       attachments.push({
-        /* use a broadly supported file type */
-        filename: `product-image.png`,
-        path: `${webUrl}/Main.png`,
+        filename: `${item.id}.png`, // unique per product
+        path: imgUrl, // absolute → Nodemailer can fetch
         cid: prodCid,
         contentDisposition: "inline",
       });
 
-      const name = (item as any).title ?? item.id; // ← use title when present
+      const name = (item as any).title ?? item.id;
 
       return `
         <tr>
