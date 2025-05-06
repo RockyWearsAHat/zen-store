@@ -39,20 +39,20 @@ const container = (inner: string) => `
     </tr>
   </table>`;
 
-/* helper: one-cell table that keeps outer padding.
-   If w is given we fix the inner image width, otherwise it’s 100 %. */
-const fluid = (cid: string, alt: string, w?: number, h?: number) => `
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-    <tr><td style="padding:0">
-      <img src="cid:${cid}" alt="${alt}"
-           ${w ? `width="${w}" height="${h ?? w}"` : ""}
-           style="display:block;width:${w ? w + "px" : "100%"};max-width:${
-  w ? w + "px" : "100%"
-};
-                  ${h ? `height:${h}px;` : "height:auto;"}object-fit:cover;
-                  border:0;outline:0;border-radius:${w === 40 ? 6 : 0}px;">
-    </td></tr>
-  </table>`;
+// /* helper: one-cell table that keeps outer padding.
+//    If w is given we fix the inner image width, otherwise it’s 100 %. */
+// const fluid = (cid: string, alt: string, w?: number, h?: number) => `
+//   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+//     <tr><td style="padding:0">
+//       <img src="cid:${cid}" alt="${alt}"
+//            ${w ? `width="${w}" height="${h ?? w}"` : ""}
+//            style="display:block;width:${w ? w + "px" : "100%"};max-width:${
+//   w ? w + "px" : "100%"
+// };
+//                   ${h ? `height:${h}px;` : "height:auto;"}object-fit:cover;
+//                   border:0;outline:0;border-radius:${w === 40 ? 6 : 0}px;">
+//     </td></tr>
+//   </table>`;
 
 /* ⇣⇣  add back the formatter that is referenced later  ⇣⇣ */
 function money(n: number): string {
