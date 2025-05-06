@@ -231,7 +231,7 @@ export async function sendSuccessEmail(
 
     mapHtml = `
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
         <tr>
           <td style="padding:0">
             <img src="cid:${mapCid}" alt="Package current location: ${label}"
@@ -248,8 +248,8 @@ export async function sendSuccessEmail(
       const prodCid = `product-${idx}@zen`;
       attachments.push({
         /* use a broadly supported file type */
-        filename: `${item.id}.png`,
-        path: `${webUrl}/Main.png`, // ← ensure this PNG/JPG exists
+        filename: `product-image.png`,
+        path: `${webUrl}/Main.png`,
         cid: prodCid,
         contentDisposition: "inline",
       });
