@@ -283,13 +283,13 @@ export async function sendSuccessEmail(
 
     <h3 style="margin-top:24px;margin-bottom:8px">Items</h3>
     <table style="width:100%;border-collapse:collapse">
-      <thead>
+      <tbody>
         <tr>
-          <th style="text-align:left;padding-bottom:4px;">Product</th>
-          <th style="text-align:right;padding-bottom:4px;width:48px;">Qty</th>
+          <td style="text-align:left;padding-bottom:4px;">Items</td>
+          <td style="text-align:right;padding-bottom:4px;width:48px;">Qty</td>
         </tr>
-      </thead>
-      <tbody>${rows}</tbody>
+        ${rows}
+      </tbody>
     </table>
 
     <!-- restored receipt section -->
