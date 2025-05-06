@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
 import "dotenv/config";
+import fs from "fs";
+import path from "path";
 
 /* ─── SMTP transport───────────────────────────────────────── */
 const transporter = nodemailer.createTransport({
@@ -144,6 +146,12 @@ const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay l
 const FALLBACK_LABEL = "United States";
 const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
+/* preload product thumbnail so we attach a real PNG (Apple Mail safe) */
+const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
+const MAIN_IMG_BUFFER: Buffer | null = fs.existsSync(MAIN_IMG_PATH)
+  ? fs.readFileSync(MAIN_IMG_PATH)
+  : null;
+
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
   intent: Stripe.PaymentIntent,
@@ -177,9 +185,11 @@ export async function sendSuccessEmail(
   /* ---------- inline attachments (logo + products) ---------- */
   const attachments: {
     filename: string;
-    path: string;
+    path?: string;
     cid: string;
     contentDisposition: "inline";
+    content?: Buffer;
+    contentType?: string;
   }[] = [];
   if (iconUrl) {
     attachments.push({
@@ -253,10 +263,19 @@ export async function sendSuccessEmail(
       const imgUrl = `${webUrl}/Main.png`;
 
       attachments.push({
-        filename: `product-${idx}.png`, // ← unique filename for Apple Mail
-        path: imgUrl,
+        filename: `product-${idx}.png`,
         cid: prodCid,
         contentDisposition: "inline",
+        ...(MAIN_IMG_BUFFER
+          ? {
+              /* preferred: embed local PNG so Apple Mail always shows it */
+              content: MAIN_IMG_BUFFER,
+              contentType: "image/png",
+            }
+          : {
+              /* fallback: remote URL as before */
+              path: imgUrl,
+            }),
       });
 
       const name = (item as any).title ?? item.id;
