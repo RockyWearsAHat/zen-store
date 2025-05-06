@@ -146,7 +146,11 @@ const FALLBACK_LABEL = "United States";
 const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
 /* absolute path to the on-disk product thumbnail (no remote fetch) */
-const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
+// const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
+const webUrl = (process.env.WEB_URL || "https://zen-essentials.store").replace(
+  /\/+$/,
+  ""
+);
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -196,7 +200,7 @@ export async function sendSuccessEmail(
     });
   }
 
-  // (per-item thumbnails will be added inside the table-row loop)
+  // (per-item thumbnails are no longer attached)
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -250,24 +254,16 @@ export async function sendSuccessEmail(
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
   const rows = parsed
     .map((item, idx) => {
-      const prodCid = `product-${idx}@zen`;
-      // attach once per item (unique filename prevents Apple Mail deduping)
-      attachments.push({
-        filename: `product-${idx}.png`,
-        path: MAIN_IMG_PATH,
-        cid: prodCid,
-        contentDisposition: "inline",
-        contentType: "image/png",
-      });
       const name = (item as any).title ?? item.id;
-
+      /* unique query param prevents Apple Mail deduplication */
+      const imgUrl = `${webUrl}/Main.png?v=${idx}`;
       return `
         <tr>
           <td style="padding:4px 0;text-align:left;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <img src="cid:${prodCid}" alt="${name}"
+                  <img src="${imgUrl}" alt="${name}"
                        width="40" height="40"
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
@@ -383,7 +379,7 @@ We appreciate your business!
     subject: "Your Zen Essentials order is confirmed",
     html,
     text, // plain‑text part
-    attachments, // now includes logo + product images + map
+    attachments, // now includes logo + map
     headers: {
       "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
     },
