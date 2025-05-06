@@ -46,6 +46,16 @@ const block = (inner: string) => `
     <tr><td style="padding:0">${inner}</td></tr>
   </table>`;
 
+/* thumbnail helper – 40px square, inline-block so text can sit to the right */
+const thumb = (cid: string, alt: string) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+         style="display:inline-block;width:40px;height:40px;vertical-align:middle;">
+    <tr><td style="padding:0">
+      <img src="cid:${cid}" alt="${alt}" width="40" height="40"
+           style="display:block;width:40px;height:40px;object-fit:cover;border-radius:6px;border:0;outline:0;">
+    </td></tr>
+  </table>`;
+
 /* ⇣⇣  add back the formatter that is referenced later  ⇣⇣ */
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -256,20 +266,17 @@ export async function sendSuccessEmail(
         contentDisposition: "inline",
       });
       return `
-          <tr>
-            <td style="padding:4px 0;vertical-align:middle;text-align:left;">
-              ${block(`
-                <img src="cid:${prodCid}" alt="${item.id}"
-                     style="display:block;width:40px;height:40px;object-fit:cover;border-radius:6px;border:0;outline:0;">
-              `)}
-              <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${
-                item.id
-              }</span>
-            </td>
-            <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${
-              item.quantity
-            }</td>
-          </tr>`;
+        <tr>
+          <td style="padding:4px 0;vertical-align:middle;text-align:left;">
+            ${thumb(prodCid, item.id)}
+            <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${
+              item.id
+            }</span>
+          </td>
+          <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">
+            ${item.quantity}
+          </td>
+        </tr>`;
     })
     .join("");
 
