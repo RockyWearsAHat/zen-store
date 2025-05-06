@@ -181,15 +181,6 @@ export async function sendSuccessEmail(
     paymentMethod?.card?.brand?.replaceAll("_", " ").toUpperCase() ?? "CARD";
   const iconUrl = cardIconUrl(brand);
 
-  /* ---------- inline attachments (logo + products) ---------- */
-  const attachments: {
-    filename: string;
-    path?: string;
-    cid: string;
-    contentDisposition: "inline";
-    content?: Buffer;
-    contentType?: string;
-  }[] = [];
   // card logo is now served remote (same as product image), no attachment needed
 
   // (per-item thumbnails are no longer attached)
@@ -382,7 +373,6 @@ We appreciate your business!
     subject: "Your Zen Essentials order is confirmed",
     html,
     text, // plain‑text part
-    attachments, // now includes logo + map
     headers: {
       "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
     },
