@@ -249,12 +249,12 @@ export async function sendSuccessEmail(
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
 
-      /* absolute PNG url ( e.g. https://zen-essentials.store/desktop-fountain.png ) */
-      const imgUrl = `${webUrl}/${item.id}.png`;
+      // always use the shared Main.png (capital M) that exists in /public
+      const imgUrl = `${webUrl}/Main.png`;
 
       attachments.push({
-        filename: `${item.id}.png`, // unique per product
-        path: imgUrl, // absolute → Nodemailer can fetch
+        filename: "Main.png",
+        path: imgUrl,
         cid: prodCid,
         contentDisposition: "inline",
       });
