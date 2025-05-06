@@ -39,21 +39,6 @@ const container = (inner: string) => `
     </tr>
   </table>`;
 
-// /* helper: one-cell table that keeps outer padding.
-//    If w is given we fix the inner image width, otherwise it’s 100 %. */
-// const fluid = (cid: string, alt: string, w?: number, h?: number) => `
-//   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-//     <tr><td style="padding:0">
-//       <img src="cid:${cid}" alt="${alt}"
-//            ${w ? `width="${w}" height="${h ?? w}"` : ""}
-//            style="display:block;width:${w ? w + "px" : "100%"};max-width:${
-//   w ? w + "px" : "100%"
-// };
-//                   ${h ? `height:${h}px;` : "height:auto;"}object-fit:cover;
-//                   border:0;outline:0;border-radius:${w === 40 ? 6 : 0}px;">
-//     </td></tr>
-//   </table>`;
-
 /* ⇣⇣  add back the formatter that is referenced later  ⇣⇣ */
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -269,19 +254,21 @@ export async function sendSuccessEmail(
         contentDisposition: "inline",
       });
 
+      const name = (item as any).title ?? item.id; // ← use title when present
+
       return `
         <tr>
           <td style="padding:4px 0;text-align:left;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
-                  <img src="cid:${prodCid}" alt="${item.id}"
+                  <img src="cid:${prodCid}" alt="${name}"
                        width="40" height="40"
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
                 </td>
                 <td style="padding-left:8px;font-family:inherit;font-size:14px;line-height:40px;">
-                  ${item.id}
+                  ${name}
                 </td>
               </tr>
             </table>

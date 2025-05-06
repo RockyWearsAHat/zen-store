@@ -179,6 +179,13 @@ router.post(
       return product ? sum + product.price * i.quantity : sum;
     }, 0);
 
+    // add title → will end up in PaymentIntent.metadata.items
+    const itemsForMeta = items.map((i: any) => ({
+      id: i.id,
+      title: catalogue[i.id]?.title ?? i.id,
+      quantity: i.quantity,
+    }));
+
     // calculate tax and fees
     const { tax, fee, total } = calculateOrderAmount(subtotal);
 
@@ -194,7 +201,7 @@ router.post(
             subtotal,
             tax,
             fee,
-            items: JSON.stringify(items),
+            items: JSON.stringify(itemsForMeta), // ← changed
             shipping: shipping ? JSON.stringify(shipping) : null, // ← add
           },
           receipt_email: email || undefined,
@@ -212,7 +219,7 @@ router.post(
             subtotal,
             tax,
             fee,
-            items: JSON.stringify(items),
+            items: JSON.stringify(itemsForMeta), // ← changed
             shipping: shipping ? JSON.stringify(shipping) : null, // ← add
           },
           receipt_email: email || undefined,
