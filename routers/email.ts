@@ -272,7 +272,7 @@ export async function sendSuccessEmail(
                        style="display:block;width:40px;height:40px;
                               object-fit:cover;border-radius:6px;border:0;outline:0;">
                 </td>
-                <td style="padding-left:8px;font-family:inherit;font-size:14px;line-height:40px;">
+                <td style="padding-left:8px;font-family:inherit;line-height:40px;">
                   ${name}
                 </td>
               </tr>
