@@ -253,7 +253,7 @@ export async function sendSuccessEmail(
       const imgUrl = `${webUrl}/Main.png`;
 
       attachments.push({
-        filename: "Main.png",
+        filename: `product-${idx}.png`, // ← unique filename for Apple Mail
         path: imgUrl,
         cid: prodCid,
         contentDisposition: "inline",
