@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
 import "dotenv/config";
-import fs from "fs";
 import path from "path";
 
 /* ─── SMTP transport───────────────────────────────────────── */
@@ -146,11 +145,8 @@ const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay l
 const FALLBACK_LABEL = "United States";
 const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
-/* preload product thumbnail so we attach a real PNG (Apple Mail safe) */
+/* absolute path to the on-disk product thumbnail (no remote fetch) */
 const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
-const MAIN_IMG_BUFFER: Buffer | null = fs.existsSync(MAIN_IMG_PATH)
-  ? fs.readFileSync(MAIN_IMG_PATH)
-  : null;
 
 /* ─── exported helpers ─────────────────────────────────────── */
 export async function sendSuccessEmail(
@@ -201,9 +197,9 @@ export async function sendSuccessEmail(
   }
 
   /* base url for product images – always absolute, fallback to site root */
-  const webUrl = (
-    process.env.WEB_URL || "https://zen-essentials.store"
-  ).replace(/\/+$/, "");
+  // const webUrl = (
+  //   process.env.WEB_URL || "https://zen-essentials.store"
+  // ).replace(/\/+$/, "");
 
   let shipping: ShippingInfo =
     charge?.shipping ?? (intent as any).shipping ?? {};
@@ -259,23 +255,13 @@ export async function sendSuccessEmail(
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
 
-      // always use the shared Main.png (capital M) that exists in /public
-      const imgUrl = `${webUrl}/Main.png`;
-
+      /* Attach the local PNG directly – no remote fetch */
       attachments.push({
         filename: `product-${idx}.png`,
+        path: MAIN_IMG_PATH,
         cid: prodCid,
         contentDisposition: "inline",
-        ...(MAIN_IMG_BUFFER
-          ? {
-              /* preferred: embed local PNG so Apple Mail always shows it */
-              content: MAIN_IMG_BUFFER,
-              contentType: "image/png",
-            }
-          : {
-              /* fallback: remote URL as before */
-              path: imgUrl,
-            }),
+        contentType: "image/png",
       });
 
       const name = (item as any).title ?? item.id;
