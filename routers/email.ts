@@ -217,14 +217,13 @@ export async function sendSuccessEmail(
 
     mapHtml = `
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-      <img src="cid:${mapCid}"
-           alt="Package current location: ${label}"
-           width="600"
-           style="display:block;width:100%;max-width:600px;border:0;outline:0;text-decoration:none;">
+      <img src="cid:${mapCid}" alt="Package current location: ${label}"
+           width="600" height="320"
+           style="width:600px;height:320px;max-width:100%;display:block;border:0;outline:0;text-decoration:none;">
     `;
   }
 
-  /* ---------- items table (now with wrapper-clipped thumbnails) ---------- */
+  /* ---------- items table (fixed thumbnail sizing) ---------- */
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
@@ -236,10 +235,9 @@ export async function sendSuccessEmail(
       return `
       <tr>
         <td style="text-align:left">
-          <span style="display:inline-block;width:40px;height:40px;overflow:hidden;border-radius:6px;margin-right:8px;vertical-align:middle;">
-            <img src="cid:${prodCid}" alt="${item.id}"
-                 style="width:100%;height:100%;display:block;border:0;outline:0;" />
-          </span>
+          <img src="cid:${prodCid}" alt="${item.id}"
+               width="40" height="40"
+               style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
           ${item.id}
         </td>
         <td style="text-align:right">${item.quantity}</td>
@@ -302,10 +300,9 @@ export async function sendSuccessEmail(
           <div>
             ${
               iconUrl
-                ? `<img src="cid:${iconCid}"
-                        alt="${brand} logo"
+                ? `<img src="cid:${iconCid}" alt="${brand} logo"
                         width="24" height="15"
-                        style="vertical-align:middle;margin-right:2px;border:0;outline:0;display:inline-block;">`
+                        style="width:24px;height:15px;vertical-align:middle;margin-right:2px;border:0;outline:0;display:inline-block;">`
                 : ""
             }
             <span>•••• ${paymentMethod?.card?.last4 ?? "XXXX"}</span>
