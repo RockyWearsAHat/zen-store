@@ -246,11 +246,18 @@ export async function sendSuccessEmail(
 
     mapHtml = `
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-      ${fluid(mapCid, `Package current location: ${label}`)}
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:0">
+            <img src="cid:${mapCid}" alt="Package current location: ${label}"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;margin:0;">
+          </td>
+        </tr>
+      </table>
     `;
   }
 
-  /* ---------- items table (thumbnail + title on one line) ---------- */
+  /* ---------- items table (thumbnail + title perfectly centred) ---------- */
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
@@ -264,13 +271,20 @@ export async function sendSuccessEmail(
 
       return `
         <tr>
-          <td style="padding:4px 0;vertical-align:middle;text-align:left;">
-            <img src="cid:${prodCid}" alt="${item.id}"
-                 width="40" height="40"
-                 style="display:inline-block;width:40px;height:40px;
-                        object-fit:cover;border-radius:6px;border:0;outline:0;
-                        vertical-align:middle;margin-right:8px;">
-            <span style="display:inline-block;vertical-align:middle;">${item.id}</span>
+          <td style="padding:4px 0;text-align:left;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td>
+                  <img src="cid:${prodCid}" alt="${item.id}"
+                       width="40" height="40"
+                       style="display:block;width:40px;height:40px;
+                              object-fit:cover;border-radius:6px;border:0;outline:0;">
+                </td>
+                <td style="padding-left:8px;font-family:inherit;font-size:14px;line-height:40px;">
+                  ${item.id}
+                </td>
+              </tr>
+            </table>
           </td>
           <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">
             ${item.quantity}
