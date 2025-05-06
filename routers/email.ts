@@ -39,6 +39,13 @@ const container = (inner: string) => `
     </tr>
   </table>`;
 
+/* helper: wraps arbitrary HTML in a 1×1 table
+   so Apple Mail keeps the outer padding intact */
+const block = (inner: string) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr><td style="padding:0">${inner}</td></tr>
+  </table>`;
+
 /* ⇣⇣  add back the formatter that is referenced later  ⇣⇣ */
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -231,9 +238,10 @@ export async function sendSuccessEmail(
 
     mapHtml = `
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-      <img src="cid:${mapCid}" alt="Package current location: ${label}"
-           width="600" height="320"
-           style="width:100%;max-width:600px;height:auto;display:block;border:0;outline:0;text-decoration:none;margin:0;">
+      ${block(`
+        <img src="cid:${mapCid}" alt="Package current location: ${label}"
+             style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;">
+      `)}
     `;
   }
 
@@ -250,13 +258,17 @@ export async function sendSuccessEmail(
       return `
           <tr>
             <td style="padding:4px 0;vertical-align:middle;text-align:left;">
-              <img src="cid:${prodCid}" alt="${item.id}"
-                   width="40" height="40"
-                   style="width:40px;height:40px;object-fit:cover;border-radius:6px;
-                          vertical-align:middle;border:0;outline:0;display:inline-block;" />
-              <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${item.id}</span>
+              ${block(`
+                <img src="cid:${prodCid}" alt="${item.id}"
+                     style="display:block;width:40px;height:40px;object-fit:cover;border-radius:6px;border:0;outline:0;">
+              `)}
+              <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${
+                item.id
+              }</span>
             </td>
-            <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${item.quantity}</td>
+            <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${
+              item.quantity
+            }</td>
           </tr>`;
     })
     .join("");
