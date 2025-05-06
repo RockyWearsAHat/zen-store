@@ -180,7 +180,6 @@ export async function sendSuccessEmail(
   const brand =
     paymentMethod?.card?.brand?.replaceAll("_", " ").toUpperCase() ?? "CARD";
   const iconUrl = cardIconUrl(brand);
-  const iconCid = "card-icon@zen";
 
   /* ---------- inline attachments (logo + products) ---------- */
   const attachments: {
@@ -191,14 +190,7 @@ export async function sendSuccessEmail(
     content?: Buffer;
     contentType?: string;
   }[] = [];
-  if (iconUrl) {
-    attachments.push({
-      filename: `${brand}.png`,
-      path: iconUrl, // fetched & embedded by Nodemailer
-      cid: iconCid,
-      contentDisposition: "inline",
-    });
-  }
+  // card logo is now served remote (same as product image), no attachment needed
 
   // (per-item thumbnails are no longer attached)
 
@@ -339,8 +331,8 @@ export async function sendSuccessEmail(
               ${
                 iconUrl
                   ? `<td style="padding:0 6px 0 0;">
-                       <img src="cid:${iconCid}" alt="${brand} logo"
-                            width="24" height="15"
+                       <img src="${iconUrl}?v=${brand}"
+                            alt="${brand} logo" width="24" height="15"
                             style="display:block;width:24px;height:15px;border:0;outline:0;vertical-align:middle;">
                      </td>`
                   : ""
