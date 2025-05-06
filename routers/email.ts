@@ -232,9 +232,10 @@ export async function sendSuccessEmail(
 
     mapHtml = `
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+             width="100%" style="border-collapse:collapse;margin:0;">
         <tr>
-          <td style="padding:0">
+          <td style="padding:0;text-align:left;">
             <img src="cid:${mapCid}" alt="Package current location: ${label}"
                  style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;margin:0;">
           </td>
