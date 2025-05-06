@@ -333,18 +333,19 @@ export async function sendSuccessEmail(
         </td>
         <td style="text-align:right;vertical-align:top">
           <h3 style="margin:0 0 8px 0">Paid&nbsp;With</h3>
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                 align="right" style="border-collapse:collapse;">
             <tr>
               ${
                 iconUrl
                   ? `<td style="padding:0 6px 0 0;">
                        <img src="cid:${iconCid}" alt="${brand} logo"
                             width="24" height="15"
-                            style="display:block;width:24px;height:15px;border:0;outline:0;">
+                            style="display:block;width:24px;height:15px;border:0;outline:0;vertical-align:middle;">
                      </td>`
                   : ""
               }
-              <td style="font-family:inherit;line-height:15px;">
+              <td style="font-family:inherit;line-height:15px;white-space:nowrap;vertical-align:middle;">
                 •••• ${paymentMethod?.card?.last4 ?? "XXXX"}
               </td>
             </tr>
