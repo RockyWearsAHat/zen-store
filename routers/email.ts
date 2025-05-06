@@ -168,12 +168,18 @@ export async function sendSuccessEmail(
   const iconCid = "card-icon@zen";
 
   /* ---------- inline attachments (logo + products) ---------- */
-  const attachments: { filename: string; path: string; cid: string }[] = [];
+  const attachments: {
+    filename: string;
+    path: string;
+    cid: string;
+    contentDisposition: "inline";
+  }[] = [];
   if (iconUrl) {
     attachments.push({
       filename: `${brand}.png`,
       path: iconUrl, // fetched & embedded by Nodemailer
       cid: iconCid,
+      contentDisposition: "inline",
     });
   }
 
@@ -213,6 +219,7 @@ export async function sendSuccessEmail(
       filename: "map.png",
       path: staticUrl, // nodemailer fetches & embeds
       cid: mapCid,
+      contentDisposition: "inline",
     });
 
     mapHtml = `
@@ -231,6 +238,7 @@ export async function sendSuccessEmail(
         filename: `${item.id}.avif`,
         path: `${webUrl}/Main.avif`,
         cid: prodCid,
+        contentDisposition: "inline",
       });
       return `
       <tr>
