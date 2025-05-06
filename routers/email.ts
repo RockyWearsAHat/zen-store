@@ -251,7 +251,7 @@ export async function sendSuccessEmail(
       const imgUrl = `${webUrl}/Main.png?v=${idx}`;
       return `
         <tr>
-          <td style="padding:4px 0;text-align:left;">
+          <td style="text-align:left;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td>
@@ -266,7 +266,7 @@ export async function sendSuccessEmail(
               </tr>
             </table>
           </td>
-          <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">
+          <td style="width:48px;text-align:right;vertical-align:middle;">
             ${item.quantity}
           </td>
         </tr>`;
@@ -283,8 +283,8 @@ export async function sendSuccessEmail(
     <table style="width:100%;border-collapse:collapse;margin-top:24px">
       <tbody>
         <tr>
-          <td style="text-align:left;padding-bottom:4px;"><h3>Items</h3></td>
-          <td style="text-align:right;padding-bottom:4px;width:48px;"><h3>Qty</h3></td>
+          <td style="text-align:left;margin-bottom:8px"><h3>Items</h3></td>
+          <td style="text-align:right;margin-bottom:8px;width:48px;"><h3>Qty</h3></td>
         </tr>
         ${rows}
       </tbody>
