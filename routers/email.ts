@@ -223,7 +223,7 @@ export async function sendSuccessEmail(
     `;
   }
 
-  /* ---------- items table (fixed thumbnail sizing) ---------- */
+  /* ---------- items table (better spacing / alignment) ---------- */
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
@@ -234,13 +234,13 @@ export async function sendSuccessEmail(
       });
       return `
       <tr>
-        <td style="text-align:left">
+        <td style="padding:4px 0;vertical-align:middle;">
           <img src="cid:${prodCid}" alt="${item.id}"
                width="40" height="40"
                style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
           ${item.id}
         </td>
-        <td style="text-align:right">${item.quantity}</td>
+        <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${item.quantity}</td>
       </tr>`;
     })
     .join("");
@@ -256,8 +256,8 @@ export async function sendSuccessEmail(
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr>
-          <th style="text-align:left">Product</th>
-          <th style="text-align:right">Qty</th>
+          <th style="text-align:left;padding-bottom:4px;">Product</th>
+          <th style="text-align:right;padding-bottom:4px;width:48px;">Qty</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
