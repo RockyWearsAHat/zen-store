@@ -83,6 +83,8 @@ async function getUPSLocation(
   const secret = process.env.UPS_CLIENT_SECRET;
   if (!id || !secret) return null;
 
+  console.log(id, secret);
+
   try {
     /* 1️⃣  OAuth token – client‑credentials */
     const tokenRes = await fetch(
@@ -217,7 +219,8 @@ export async function sendSuccessEmail(
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
       <img src="cid:${mapCid}"
            alt="Package current location: ${label}"
-           style="width:100%;max-width:600px;border:0;outline:none;text-decoration:none;">
+           width="600"
+           style="display:block;width:100%;max-width:600px;border:0;outline:0;text-decoration:none;">
     `;
   }
 
@@ -234,7 +237,8 @@ export async function sendSuccessEmail(
       <tr>
         <td style="text-align:left">
           <img src="cid:${prodCid}" alt="${item.id}"
-               style="width:40px;height:40px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;display:inline-block;border:none;outline:none;" />
+               width="40" height="40"
+               style="border-radius:6px;margin-right:8px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
           ${item.id}
         </td>
         <td style="text-align:right">${item.quantity}</td>
@@ -299,8 +303,8 @@ export async function sendSuccessEmail(
               iconUrl
                 ? `<img src="cid:${iconCid}"
                         alt="${brand} logo"
-                        height="15"
-                        style="width:auto;vertical-align:middle;margin-right:2px;border:none;outline:none;">`
+                        width="24" height="15"
+                        style="vertical-align:middle;margin-right:2px;border:0;outline:0;display:inline-block;">`
                 : ""
             }
             <span>•••• ${paymentMethod?.card?.last4 ?? "XXXX"}</span>
