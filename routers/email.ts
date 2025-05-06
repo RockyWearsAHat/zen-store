@@ -23,17 +23,24 @@ transporter
     console.error("SMTP verification failed:", err);
   });
 
-/* ─── html helpers (very small, inline‑styled for compatibility) ─── */
+/* ─── html helpers (very small, inline-styled for compatibility) ─── */
+/*  replaced <div> wrapper with a “bulletproof” table  */
 const container = (inner: string) => `
-  <div style="font-family:system-ui,Segoe UI,Roboto,sans-serif;
-              max-width:600px;margin:0 auto;padding:24px;color:#111">
-    ${inner}
-    <p style="margin-top:32px;font-size:13px;color:#666">
-      Zen Essentials · 123 Peaceful Way · Somewhere, USA
-    </p>
-  </div>`;
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+         align="center" width="100%" style="max-width:600px;border-collapse:collapse;">
+    <tr>
+      <td style="font-family:system-ui,Segoe UI,Roboto,sans-serif;
+                 color:#111;padding:24px;">
+        ${inner}
+        <p style="margin-top:32px;font-size:13px;color:#666">
+          Zen&nbsp;Essentials · 123 Peaceful Way · Somewhere,&nbsp;USA
+        </p>
+      </td>
+    </tr>
+  </table>`;
 
-function money(n: number) {
+/* ⇣⇣  add back the formatter that is referenced later  ⇣⇣ */
+function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
@@ -226,7 +233,7 @@ export async function sendSuccessEmail(
       <h3 style="margin-top:24px;margin-bottom:8px">Current&nbsp;Location</h3>
       <img src="cid:${mapCid}" alt="Package current location: ${label}"
            width="600" height="320"
-           style="width:600px;height:320px;max-width:100%;display:block;border:0;outline:0;text-decoration:none;">
+           style="width:100%;max-width:600px;height:auto;display:block;border:0;outline:0;text-decoration:none;margin:0;">
     `;
   }
 
@@ -241,15 +248,16 @@ export async function sendSuccessEmail(
         contentDisposition: "inline",
       });
       return `
-      <tr>
-        <td style="padding:4px 0;vertical-align:middle;">
-          <img src="cid:${prodCid}" alt="${item.id}"
-               width="40" height="40"
-               style="width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;border:0;outline:0;display:inline-block;" />
-          <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${item.id}</span>
-        </td>
-        <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${item.quantity}</td>
-      </tr>`;
+          <tr>
+            <td style="padding:4px 0;vertical-align:middle;text-align:left;">
+              <img src="cid:${prodCid}" alt="${item.id}"
+                   width="40" height="40"
+                   style="width:40px;height:40px;object-fit:cover;border-radius:6px;
+                          vertical-align:middle;border:0;outline:0;display:inline-block;" />
+              <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${item.id}</span>
+            </td>
+            <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${item.quantity}</td>
+          </tr>`;
     })
     .join("");
 
