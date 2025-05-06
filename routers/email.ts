@@ -28,12 +28,12 @@ transporter
 /*  replaced <div> wrapper with a “bulletproof” table  */
 const container = (inner: string) => `
   <table role="presentation" cellspacing="0" cellpadding="0" border="0"
-         align="center" width="100%" style="max-width:600px;border-collapse:collapse;">
+         align="center" width="100%" style="max-width:600px;border-collapse:collapse;background:#000;">
     <tr>
       <td style="font-family:system-ui,Segoe UI,Roboto,sans-serif;
-                 color:#111;padding:24px;">
+                 color:#ddd;background:#000;padding:24px;">
         ${inner}
-        <p style="margin-top:32px;font-size:13px;color:#666">
+        <p style="margin-top:32px;font-size:13px;color:#999">
           Zen&nbsp;Essentials · 123 Peaceful Way · Somewhere,&nbsp;USA
         </p>
       </td>
