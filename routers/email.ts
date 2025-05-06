@@ -33,7 +33,7 @@ const container = (inner: string) => `
       <td style="font-family:system-ui,Segoe UI,Roboto,sans-serif;
                  padding:24px;">
         ${inner}
-        <p style="margin-top:32px;font-size:13px;color:#666">
+        <p style="margin-top:32px;font-size:13px;opacity:.6">
           Zen&nbsp;Essentials · 123 Peaceful Way · Somewhere,&nbsp;USA
         </p>
       </td>
@@ -275,8 +275,8 @@ export async function sendSuccessEmail(
 
   console.log(addr);
 
-  /* ---------- html ---------- */
-  let html = container(`
+  /* ─── assemble html ─── */
+  const bodyInner = container(`
     <h2 style="color:#0f766e">Thank you for your purchase!</h2>
     <p>Your order #<strong>${orderNumber}</strong> is confirmed.</p>
 
@@ -356,6 +356,18 @@ export async function sendSuccessEmail(
     </p>
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
+
+  const html = `
+  <!DOCTYPE html>
+  <html>
+   <head>
+     <meta name="color-scheme" content="light dark">
+     <meta name="supported-color-schemes" content="light dark">
+   </head>
+   <body style="margin:0;padding:0;background:inherit;color:inherit;">
+     ${bodyInner}
+   </body>
+  </html>`;
 
   /* ---------- plain‑text fallback ---------- */
   const text = `
