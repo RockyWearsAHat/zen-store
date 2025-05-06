@@ -250,27 +250,31 @@ export async function sendSuccessEmail(
     `;
   }
 
-  /* ---------- items table (final alignment tweak) ---------- */
+  /* ---------- items table (thumbnail + title on one line) ---------- */
   const rows = parsed
     .map((item, idx) => {
       const prodCid = `product-${idx}@zen`;
       attachments.push({
-        filename: `${item.id}.avif`,
-        path: `${webUrl}/Main.avif`,
+        /* use a broadly supported file type */
+        filename: `${item.id}.png`,
+        path: `${webUrl}/Main.png`, // ← ensure this PNG/JPG exists
         cid: prodCid,
         contentDisposition: "inline",
       });
+
       return `
         <tr>
           <td style="padding:4px 0;vertical-align:middle;text-align:left;">
-            ${fluid(prodCid, item.id, 40, 40)}
-            <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${
-              item.id
-            }</span>
+            <img src="cid:${prodCid}" alt="${item.id}"
+                 width="40" height="40"
+                 style="display:inline-block;width:40px;height:40px;
+                        object-fit:cover;border-radius:6px;border:0;outline:0;
+                        vertical-align:middle;margin-right:8px;">
+            <span style="display:inline-block;vertical-align:middle;">${item.id}</span>
           </td>
-          <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">${
-            item.quantity
-          }</td>
+          <td style="width:48px;padding:4px 0;text-align:right;vertical-align:middle;">
+            ${item.quantity}
+          </td>
         </tr>`;
     })
     .join("");
