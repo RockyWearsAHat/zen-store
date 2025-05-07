@@ -10,7 +10,7 @@ const App: React.FC = () => {
   return (
     <CartProvider>
       <Header />
-      <main className="flex-1">
+      <main className="flex-1 pt-0">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/product" element={<ProductPage />} />
