@@ -73,32 +73,50 @@ export default function LandingPage() {
 
   /* ---------- JSX ---------- */
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col bg-stone-900 text-stone-100">
       {/* Hero */}
-      <section className="bg-brand text-white">
-        <div className="max-w-6xl mx-auto px-6 py-28 flex flex-col lg:flex-row items-center gap-12">
-          <div className="flex-1 text-gray-900">
-            {/* headline & sub‑copy revised */}
-            <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-6">
+      <section className="bg-stone-900">
+        <div
+          className="
+            w-full max-w-none                /* full width < xl */
+            xl:max-w-6xl                     /* constrain on xl+ */
+            mx-auto
+            px-6 xl:px-6                     /* regular padding  */
+            py-[5rem]
+            flex flex-col gap-12             /* default stack    */
+            xl:grid xl:grid-cols-2 xl:gap-12 /* side-by-side ≥xl */
+          "
+        >
+          {/* headline & CTA */}
+          <div className="order-2 xl:order-1 text-center xl:text-left flex flex-col justify-between h-full">
+            <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-6 text-stone-100">
               Find Your Flow with the{" "}
-              <span className="underline">ZenFlow™ Fountain</span>
+              <span className="underline text-brand">ZenFlow™ Fountain</span>
             </h1>
-            <p className="text-lg md:text-xl mb-8 max-w-xl ">
-              Gentle water, soft light, and modern ceramic design—everything you
-              need to turn your desk into a mini oasis. Breathe in, feel
-              tranquility wash over you, and let your productivity flow.
+            <p className="text-lg md:text-xl mb-8 max-w-xl mx-auto text-stone-300">
+              Gentle water, soft light, and modern ceramic
+              decorations—everything you need to turn your desk into a mini
+              retreat. Take a deep breath in, feel tranquility wash over you,
+              and let your productivity flow.
             </p>
             <Link
-              // readability: dark text inside white button, turns inverse on hover
-              className="inline-block bg-white text-gray-900 font-semibold px-8 py-4 rounded-lg shadow-lg hover:bg-brand hover:text-gray-800 transition"
+              className="inline-block w-full text-center bg-brand text-stone-900 font-semibold
+                         px-8 py-[1.105rem] rounded-lg transition hover:scale-[102%]
+                         mt-8 xl:mt-auto"
               to="/product"
             >
-              Buy Now – $109.99
+              Buy Now – $109.99
             </Link>
           </div>
-          {/* infinite‑scrolling & clickable hero images */}
+
+          {/* infinite-scrolling & clickable hero images */}
           <div
-            className="relative flex-1 h-96 md:h-[500px] overflow-hidden rounded-xl shadow-2xl cursor-pointer"
+            className="relative order-1 xl:order-2
+                       aspect-square
+                       h-96 md:h-[500px] xl:h-auto
+                       w-auto mx-auto
+                       overflow-hidden rounded-xl shadow-lg
+                       cursor-pointer"
             onClick={handleClick}
           >
             <div
@@ -112,7 +130,9 @@ export default function LandingPage() {
                   key={i}
                   src={src}
                   alt="Desktop fountain hero"
-                  className="w-full h-full flex-shrink-0 object-cover"
+                  className="w-full h-full flex-shrink-0
+                             object-cover object-center   /* fill, no gutter */
+                             rounded-xl" /* visible radius   */
                 />
               ))}
             </div>
@@ -122,8 +142,8 @@ export default function LandingPage() {
 
       {/* Features */}
       <section
-        /* lift section upward on larger screens */
-        className="bg-gray-50 py-20 -mt-12 md:-mt-24"
+        /* lift section upward on small/medium, but not on large screens */
+        className="bg-stone-900 py-20 -mt-12 md:-mt-24 lg:mt-0"
       >
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-3 gap-12">
           {[
@@ -146,18 +166,19 @@ export default function LandingPage() {
             <div
               key={f.title}
               /* force dark copy inside white card */
-              className="bg-white text-gray-900 rounded-xl p-8 shadow hover:shadow-lg transition"
+              className="bg-stone-800 text-stone-100 rounded-xl p-8 shadow hover:shadow-lg
+                         border border-stone-700 transition text-center"
             >
               <div className="text-4xl mb-4">{f.icon}</div>
               <h3 className="text-xl font-bold mb-2">{f.title}</h3>
-              <p className="text-gray-600">{f.desc}</p>
+              <p className="text-stone-400">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="bg-brand text-white py-16 text-center overflow-y-visible">
+      <section className="text-white py-16 text-center overflow-y-visible">
         {/* customer reviews loop */}
         <div className="max-w-6xl mx-auto mb-10 px-6 overflow-y-visible">
           <ReviewsCarousel />

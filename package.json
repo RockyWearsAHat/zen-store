@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"stripe listen --forward-to localhost:4000api/webhook\"",
+    "dev": "concurrently \"vite --host\" \"stripe listen --forward-to localhost:4000api/webhook\"",
     "preview": "vite preview",
     "backend": "nodemon --quiet -x ts-node server/server.ts",
     "build": "rm -rf dist && tsc && vite build && rollup -c rollup.config.mjs",

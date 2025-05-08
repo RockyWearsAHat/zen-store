@@ -7,12 +7,12 @@ export default function Header() {
   const count = items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
-    <header className="bg-brand text-gray-800 bg-white p-4 flex justify-between sticky top-0 z-50">
+    <header className="bg-stone-900 text-stone-100 p-4 flex justify-between fixed top-0 left-0 w-full z-50 border-b border-stone-800">
       <Link to="/" className="font-bold text-xl">
         Zen Essentials
       </Link>
       <nav className="flex items-center gap-6">
-        <Link to="/cart" aria-label="Cart" className="relative text-gray-900">
+        <Link to="/cart" aria-label="Cart" className="relative text-stone-100">
           <FaShoppingCart size={22} />
           {count > 0 && (
             <span

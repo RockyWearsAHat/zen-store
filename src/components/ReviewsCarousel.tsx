@@ -141,7 +141,7 @@ export default function ReviewsCarousel() {
       {x3.map((r, i) => (
         <div
           // add whitespace-normal & text-left so card content wraps and is left‑aligned
-          className="inline-block bg-white text-gray-900 rounded-lg p-6 shadow min-w-[16rem] max-w-xs whitespace-normal text-left overflow-y-visible"
+          className="inline-block bg-stone-800 text-stone-100 rounded-lg p-6 shadow min-w-[16rem] max-w-xs whitespace-normal text-left overflow-y-visible"
           key={i}
         >
           <StarRating value={r.rating} />

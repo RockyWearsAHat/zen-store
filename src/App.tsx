@@ -9,15 +9,18 @@ import { CartProvider } from "./context/CartContext";
 const App: React.FC = () => {
   return (
     <CartProvider>
-      <Header />
-      <main className="flex-1 pt-0">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/product" element={<ProductPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route path="/success" element={<SuccessPage />} />
-        </Routes>
-      </main>
+      {/* dark canvas for every page */}
+      <div className="min-h-screen flex flex-col bg-stone-900 text-stone-100">
+        <Header />
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/product" element={<ProductPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/success" element={<SuccessPage />} />
+          </Routes>
+        </main>
+      </div>
     </CartProvider>
   );
 };

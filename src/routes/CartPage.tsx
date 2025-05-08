@@ -87,11 +87,11 @@ export default function CartPage() {
   const { tax, fee, total } = calculateOrderAmount(subtotal);
 
   return (
-    <section className="p-8 max-w-3xl mx-auto">
+    <section className="bg-stone-900 text-stone-100 p-8 max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold mb-4">Your Cart</h2>
-      <table className="w-full mb-6">
+      <table className="w-full mb-6 border-stone-700">
         <thead>
-          <tr className="text-left">
+          <tr className="text-left text-stone-400">
             <th>Item</th>
             <th>Qty</th>
             <th>Price</th>
@@ -100,7 +100,7 @@ export default function CartPage() {
         </thead>
         <tbody>
           {items.map((i) => (
-            <tr key={i.id} className="border-t">
+            <tr key={i.id} className="border-t border-stone-700">
               <td className="py-2">{i.title}</td>
               <td>
                 <input
@@ -108,7 +108,7 @@ export default function CartPage() {
                   value={i.quantity}
                   min={1}
                   onChange={(e) => updateQuantity(i.id, Number(e.target.value))}
-                  className="w-16 border rounded px-2"
+                  className="w-16 border border-stone-600 rounded px-2 bg-stone-800 text-stone-100"
                 />
               </td>
               <td>${(i.price * i.quantity).toFixed(2)}</td>

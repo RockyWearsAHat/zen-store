@@ -1,5 +1,237 @@
 @import "tailwindcss";
 
+/* ─── design tokens ────────────────────────────────────────── */
+:root {
+  /* brand – warm brown (from Main.avif) */
+  --color-brand-50: oklch(0.98 0.005 85);
+  --color-brand-100: oklch(0.94 0.01 85);
+  --color-brand-200: oklch(0.88 0.02 85);
+  --color-brand-300: oklch(0.8 0.035 85);
+  --color-brand-400: oklch(0.7 0.05 85);
+  --color-brand-500: oklch(0.56 0.07 85); /* primary – beige */
+  --color-brand-600: oklch(0.46 0.06 85);
+  --color-brand-700: oklch(0.35 0.05 85);
+  --color-brand-800: oklch(0.26 0.04 85);
+  --color-brand-900: oklch(0.16 0.03 85);
+
+  /* neutral stone greys for minimal UI chrome */
+  --color-stone-50: oklch(0.96 0.008 250);
+  --color-stone-100: oklch(0.92 0.008 250);
+  --color-stone-200: oklch(0.86 0.008 250);
+  --color-stone-300: oklch(0.79 0.008 250);
+  --color-stone-400: oklch(0.72 0.008 250);
+  --color-stone-500: oklch(0.65 0.008 250);
+  --color-stone-600: oklch(0.55 0.008 250);
+  --color-stone-700: oklch(0.45 0.008 250);
+  --color-stone-800: oklch(0.35 0.008 250);
+  --color-stone-900: oklch(0.25 0.008 250);
+
+  /* new warm accent for occasional pops (peach) */
+  --color-accent-400: oklch(0.82 0.15 38);
+  --color-accent-500: oklch(0.75 0.17 38);
+  --color-accent-600: oklch(0.65 0.17 38);
+  /* mellowed gold for rating stars */
+  --color-gold-400: oklch(0.78 0.14 95);
+}
+
+/* ─── compatibility helpers (existing class names) ─────────── */
+@layer utilities {
+  /* brand */
+  .text-brand {
+    color: var(--color-brand-400);
+  }
+  .bg-brand {
+    background-color: var(--color-brand-400);
+  }
+  .border-brand {
+    border-color: var(--color-brand-400);
+  }
+
+  /* neutral gray → stone palette  */
+  .text-gray-50 {
+    color: var(--color-stone-50);
+  }
+  .text-gray-100 {
+    color: var(--color-stone-100);
+  }
+  .text-gray-200 {
+    color: var(--color-stone-200);
+  }
+  .text-gray-300 {
+    color: var(--color-stone-300);
+  }
+  .text-gray-400 {
+    color: var(--color-stone-400);
+  }
+  .text-gray-500 {
+    color: var(--color-stone-500);
+  }
+  .text-gray-600 {
+    color: var(--color-stone-600);
+  }
+  .text-gray-700 {
+    color: var(--color-stone-700);
+  }
+  .text-gray-800 {
+    color: var(--color-stone-800);
+  }
+  .text-gray-900 {
+    color: var(--color-stone-900);
+  }
+
+  .bg-gray-50 {
+    background-color: var(--color-stone-50);
+  }
+  .bg-gray-100 {
+    background-color: var(--color-stone-100);
+  }
+  .bg-gray-200 {
+    background-color: var(--color-stone-200);
+  }
+  .bg-gray-300 {
+    background-color: var(--color-stone-300);
+  }
+  .bg-gray-400 {
+    background-color: var(--color-stone-400);
+  }
+  .bg-gray-500 {
+    background-color: var(--color-stone-500);
+  }
+  .bg-gray-600 {
+    background-color: var(--color-stone-600);
+  }
+  .bg-gray-700 {
+    background-color: var(--color-stone-700);
+  }
+  .bg-gray-800 {
+    background-color: var(--color-stone-800);
+  }
+  .bg-gray-900 {
+    background-color: var(--color-stone-900);
+  }
+
+  .border-gray-50 {
+    border-color: var(--color-stone-50);
+  }
+  .border-gray-100 {
+    border-color: var(--color-stone-100);
+  }
+  .border-gray-200 {
+    border-color: var(--color-stone-200);
+  }
+  .border-gray-300 {
+    border-color: var(--color-stone-300);
+  }
+  .border-gray-400 {
+    border-color: var(--color-stone-400);
+  }
+  .border-gray-500 {
+    border-color: var(--color-stone-500);
+  }
+  .border-gray-600 {
+    border-color: var(--color-stone-600);
+  }
+  .border-gray-700 {
+    border-color: var(--color-stone-700);
+  }
+  .border-gray-800 {
+    border-color: var(--color-stone-800);
+  }
+  .border-gray-900 {
+    border-color: var(--color-stone-900);
+  }
+
+  /* accent helpers (opt-in) */
+  .text-accent {
+    color: var(--color-accent-500);
+  }
+  .bg-accent {
+    background-color: var(--color-accent-500);
+  }
+  .border-accent {
+    border-color: var(--color-accent-500);
+  }
+
+  /* softer gold for stars & bars */
+  .text-yellow-400 {
+    color: var(--color-gold-400);
+  }
+  .bg-yellow-400 {
+    background-color: var(--color-gold-400);
+  }
+}
+
+/* ─── automatic dark mode (prefers-color-scheme) ───────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* shift neutrals to charcoal – but keep the 50→900 order */
+    --color-stone-50: oklch(0.88 0.008 250);
+    --color-stone-100: oklch(0.8 0.008 250);
+    --color-stone-200: oklch(0.72 0.008 250);
+    --color-stone-300: oklch(0.62 0.008 250);
+    --color-stone-400: oklch(0.54 0.008 250);
+    --color-stone-500: oklch(0.46 0.008 250);
+    --color-stone-600: oklch(0.38 0.008 250);
+    --color-stone-700: oklch(0.3 0.008 250);
+    --color-stone-800: oklch(0.22 0.008 250);
+    --color-stone-900: oklch(0.14 0.008 250);
+
+    /* deepen brand & accent slightly for contrast */
+    --color-brand-500: oklch(0.62 0.07 85); /* beige with sufficient contrast */
+    --color-accent-500: oklch(0.68 0.17 38);
+  }
+
+  /* surface / text tweaks (keep layout intact) */
+  .bg-white {
+    background-color: var(--color-stone-50) !important;
+  }
+  .text-gray-900 {
+    color: var(--color-stone-900) !important;
+  }
+  .text-gray-800 {
+    color: var(--color-stone-800) !important;
+  }
+  .border-gray-300 {
+    border-color: var(--color-stone-300) !important;
+  }
+
+  body {
+    background-color: var(--color-stone-900);
+    color: var(--color-stone-100);
+  }
+}
+
+/* ─── hard-force dark background across the whole app ───────── */
+body,
+html {
+  background-color: var(--color-stone-900) !important;
+  color: var(--color-stone-100) !important;
+}
+
+/* neutralise common light backgrounds */
+.bg-white,
+.bg-gray-50,
+.bg-gray-100 {
+  background-color: var(--color-stone-800) !important;
+}
+
+/* keep text readable when components still use light text colours */
+.text-gray-900,
+.text-gray-800,
+.text-gray-700 {
+  color: var(--color-stone-100) !important;
+}
+
+/* ─── global canvas colors ─────────────────────────────────── */
+html {
+  color-scheme: dark;
+} /* dark-aware form controls */
+body {
+  background-color: var(--color-stone-900); /* deep charcoal */
+  color: var(--color-stone-100); /* light text */
+}
+
+/* ─── misc local utilities ─────────────────────────────────── */
 .no-scrollbar {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE 10+  */

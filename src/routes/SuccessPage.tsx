@@ -13,12 +13,12 @@ export default function SuccessPage() {
   }, []);
 
   return (
-    <section className="p-8 text-center">
+    <section className="bg-stone-900 text-stone-100 p-8 text-center">
       <h2 className="text-3xl font-bold text-brand mb-4">
         Payment Successful 🎉
       </h2>
       <p className="mb-2">Your session ID: {params.get("session_id")}</p>
-      <Link className="underline" to="/">
+      <Link className="underline text-brand" to="/">
         Back to Home
       </Link>
     </section>
