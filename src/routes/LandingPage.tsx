@@ -22,6 +22,8 @@ export default function LandingPage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [skipAnimation, setSkipAnimation] = useState(false);
   const autoScrollTimer = useRef<number | null>(null);
+  const playTimerRef = useRef<number | null>(null); // deferred play
+  const SAFE_PLAY_DELAY = 150; // ms – long enough for CSS
   // Keep track of the slide we are leaving so we can keep it visible during the animation
   const prevIndexRef = useRef(currentIndex);
 
@@ -50,6 +52,11 @@ export default function LandingPage() {
       clearTimeout(autoScrollTimer.current);
       autoScrollTimer.current = null;
     }
+    // also clear any pending play-after-scroll timer
+    if (playTimerRef.current) {
+      clearTimeout(playTimerRef.current);
+      playTimerRef.current = null;
+    }
   };
 
   // Handle slide transition end
@@ -69,56 +76,34 @@ export default function LandingPage() {
   // Navigate to a specific slide
   const goToSlide = (index: number) => {
     if (isTransitioning && currentIndex === index) return;
-
-    // remember where we are coming from
     prevIndexRef.current = currentIndex;
 
+    const targetSrc = slides[index]; // what we are scrolling TO
+
+    // Pause all videos and rewind only the target src (handles duplicate pair)
     slides.forEach((slideSrc, i) => {
       if (slideSrc.endsWith(".mp4")) {
-        const videoElement = document.getElementById(
+        const video = document.getElementById(
           `video-slide-${i}`
         ) as HTMLVideoElement | null;
-        if (videoElement) {
-          // Always pause any video that's playing
-          if (!videoElement.paused) {
-            videoElement.pause();
-          }
+        if (!video) return;
 
-          // If this is the video we are navigating TO:
-          if (i === index) {
-            /* ensure the duplicate video (e.g. last slide) has real data
-               before we rewind → prevents blank frame */
-            if (videoElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-              videoElement.load(); // kicks off buffering of first frame
-            }
-            if (videoElement.readyState >= HTMLMediaElement.HAVE_METADATA) {
-              if (videoElement.currentTime !== 0) {
-                videoElement.currentTime = 0;
-              }
-            } else {
-              // If metadata not loaded, set up a one-time listener to reset time.
-              // Ensure it's also paused after metadata load, as it's being prepared.
-              const handler = () => {
-                if (videoElement.currentTime !== 0) {
-                  videoElement.currentTime = 0;
-                }
-                if (!videoElement.paused) {
-                  // Ensure pause after time reset
-                  videoElement.pause();
-                }
-              };
-              videoElement.addEventListener("loadedmetadata", handler, {
-                once: true,
-              });
-            }
-          }
-          // For videos not being navigated to, we just ensure they are paused (done above).
-          // Their currentTime is not touched here, preserving their last play position.
+        if (!video.paused) video.pause();
+
+        // Rewind when this slide shares the same src as the target (covers duplicate)
+        if (slideSrc === targetSrc) {
+          const doRewind = () => {
+            if (video.currentTime !== 0) video.currentTime = 0;
+            if (!video.paused) video.pause();
+          };
+          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) doRewind();
+          else
+            video.addEventListener("loadedmetadata", doRewind, { once: true });
         }
       }
     });
 
-    stopAutoScroll(); // Stop timer on any navigation (manual or programmatic)
+    stopAutoScroll(); // also clears play timers
     setIsTransitioning(true);
     setCurrentIndex(index);
   };
@@ -240,29 +225,23 @@ export default function LandingPage() {
           `video-slide-${currentIndex}`
         ) as HTMLVideoElement | null;
         if (video) {
-          const playVideo = () => {
-            // currentTime was already rewound in goToSlide ― do NOT touch it here
-            if (video.paused) {
-              video
-                .play()
-                .catch((error) =>
-                  console.error(
-                    `Error playing video 'video-slide-${currentIndex}' (src: ${slides[currentIndex]}):`,
-                    error
-                  )
-                );
-            }
+          const playAfterDelay = () => {
+            if (video.paused) video.play().catch(console.error);
           };
 
-          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            playVideo();
-          } else {
-            video.onloadedmetadata = null;
-            const loadedMetadataAndPlayHandler = () => {
-              playVideo();
+          const queuePlay = () => {
+            playTimerRef.current = window.setTimeout(() => {
+              playAfterDelay();
+              playTimerRef.current = null;
+            }, SAFE_PLAY_DELAY);
+          };
+
+          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) queuePlay();
+          else {
+            video.onloadedmetadata = () => {
+              queuePlay();
               video.onloadedmetadata = null;
             };
-            video.onloadedmetadata = loadedMetadataAndPlayHandler;
           }
         }
       } else {
