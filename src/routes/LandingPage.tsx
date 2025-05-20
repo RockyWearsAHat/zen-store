@@ -118,32 +118,29 @@ export default function LandingPage() {
     // If the requested slide is the one we’re already on, just ignore.
     if (next === currentIndex) return;
 
-    const targetSrc = slides[next]; // what we are scrolling TO
+    const targetSrc = slides[next]; // video we’re navigating TO
 
-    // Pause all videos and rewind only the target src (handles duplicate pair)
+    // Pause everything and rewind only hidden duplicates of the target
     slides.forEach((slideSrc, i) => {
-      if (slideSrc.endsWith(".mp4")) {
-        const video = document.getElementById(
-          `video-slide-${i}`
-        ) as HTMLVideoElement | null;
-        if (!video) return;
+      if (!slideSrc.endsWith(".mp4")) return;
+      const video = document.getElementById(
+        `video-slide-${i}`
+      ) as HTMLVideoElement | null;
+      if (!video) return;
 
-        if (!video.paused) video.pause();
+      if (!video.paused) video.pause(); // always pause
 
-        // Rewind when this slide shares the same src as the target (covers duplicate)
-        if (slideSrc === targetSrc) {
-          const doRewind = () => {
-            if (video.currentTime !== 0) video.currentTime = 0;
-            if (!video.paused) video.pause();
-          };
-          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) doRewind();
-          else
-            video.addEventListener("loadedmetadata", doRewind, { once: true });
-        }
+      // rewind if it’s the target source BUT not the slide currently on-screen
+      if (slideSrc === targetSrc && i !== currentIndex) {
+        const doRewind = () => {
+          if (video.currentTime !== 0) video.currentTime = 0;
+        };
+        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) doRewind();
+        else video.addEventListener("loadedmetadata", doRewind, { once: true });
       }
     });
 
-    stopAutoScroll(); // also clears play timers
+    stopAutoScroll(); // ...existing code...
     setIsTransitioning(true);
     setCurrentIndex(next);
   };
@@ -294,8 +291,16 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col bg-stone-900 text-stone-100">
       <section className="bg-stone-900 overflow-hidden">
-        <div className="w-full max-w-none xl:max-w-6xl mx-auto px-6 xl:px-6 py-[5rem] flex flex-col gap-12 xl:grid xl:grid-cols-2 xl:gap-12">
-          <div className="order-2 xl:order-1 text-center xl:text-left flex flex-col justify-between h-full">
+        <div
+          /* stack until xl, then 2-col grid */
+          className="w-full max-w-none xl:max-w-6xl mx-auto px-6 xl:px-6 py-[5rem]
+                     grid grid-cols-1 xl:grid-cols-2 gap-12 xl:gap-12 items-stretch"
+        >
+          <div
+            /* text column */
+            className="order-2 xl:order-1 text-center xl:text-left flex flex-col justify-between h-full
+                       max-w-[650px] mx-auto xl:max-w-none relative"
+          >
             <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-6 text-stone-100">
               Find Your Flow with the{" "}
               <span className="underline text-brand">ZenFlow™ Fountain</span>
@@ -312,18 +317,23 @@ export default function LandingPage() {
               .
             </p>
             <Link
-              className="inline-block w-full text-center bg-brand text-stone-900 font-semibold
-                         px-8 py-[1.105rem] rounded-lg transition hover:scale-[102%]
-                         mt-8 xl:mt-auto focus:outline-none focus:ring-none focus:text-stone-900"
+              className="text-center bg-brand text-stone-900 font-semibold
+                         px-8 py-[1.105rem] transition hover:scale-[102%]
+                         focus:outline-none focus:ring-none focus:text-stone-900
+                         w-full relative rounded-lg             /* < xl */
+                         xl:static xl:rounded-lg xl:mt-auto"
               to="/product"
             >
               Shop Now
             </Link>
           </div>
 
-          {/* Hero Image Carousel - Fixed styling */}
+          {/* Hero Image Carousel */}
           <div
-            className="relative order-1 xl:order-2 aspect-square w-full mx-auto overflow-hidden rounded-xl shadow-lg cursor-pointer"
+            /* height-driven square (height from grid row ⇒ width auto) */
+            className="relative order-1 xl:order-2 h-full aspect-square
+                       max-h-[650px] mx-auto xl:mx-0 overflow-hidden
+                       rounded-xl shadow-lg cursor-pointer"
             onClick={handleClick}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
