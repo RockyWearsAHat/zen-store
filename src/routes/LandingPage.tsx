@@ -22,8 +22,9 @@ export default function LandingPage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [skipAnimation, setSkipAnimation] = useState(false);
   const autoScrollTimer = useRef<number | null>(null);
-  const playTimerRef = useRef<number | null>(null); // deferred play
-  const SAFE_PLAY_DELAY = 150; // ms – long enough for CSS
+  const playTimerRef = useRef<number | null>(null);
+  const SAFE_PLAY_DELAY = 150;
+  const pendingIndexRef = useRef<number | null>(null); // NEW – queued click
   // Keep track of the slide we are leaving so we can keep it visible during the animation
   const prevIndexRef = useRef(currentIndex);
 
@@ -33,6 +34,14 @@ export default function LandingPage() {
 
     const timeout = setTimeout(() => {
       setSkipAnimation(false);
+      setIsTransitioning(false); // <-- unlock interactions
+
+      // if a click was queued while skip was active, run it now
+      if (pendingIndexRef.current !== null) {
+        const next = pendingIndexRef.current;
+        pendingIndexRef.current = null;
+        goToSlide(next);
+      }
     }, 50);
 
     return () => clearTimeout(timeout);
@@ -71,14 +80,45 @@ export default function LandingPage() {
       setSkipAnimation(true);
       setCurrentIndex(1);
     }
+
+    // After everything settles, process any queued navigation
+    if (!skipAnimation && pendingIndexRef.current !== null) {
+      const next = pendingIndexRef.current;
+      pendingIndexRef.current = null;
+      // slight delay to allow CSS engine to register new transform
+      window.setTimeout(() => goToSlide(next), 0);
+      return; // exit early – goToSlide will setTransitioning again
+    }
   };
 
   // Navigate to a specific slide
   const goToSlide = (index: number) => {
-    if (isTransitioning && currentIndex === index) return;
+    // defer if an instant-skip is still in effect
+    if (skipAnimation) {
+      const total = slides.length;
+      pendingIndexRef.current = ((index % total) + total) % total;
+      return;
+    }
+
+    /* If a transition is running, remember the latest request and exit */
+    if (isTransitioning) {
+      // normalise before queuing so it’s always a valid target
+      const total = slides.length;
+      pendingIndexRef.current = ((index % total) + total) % total;
+      return;
+    }
+
+    // keep a reference to the slide we’re leaving
     prevIndexRef.current = currentIndex;
 
-    const targetSrc = slides[index]; // what we are scrolling TO
+    // clamp / wrap so we never go out-of-bounds
+    const total = slides.length;
+    const next = ((index % total) + total) % total; // safe modulo
+
+    // If the requested slide is the one we’re already on, just ignore.
+    if (next === currentIndex) return;
+
+    const targetSrc = slides[next]; // what we are scrolling TO
 
     // Pause all videos and rewind only the target src (handles duplicate pair)
     slides.forEach((slideSrc, i) => {
@@ -105,7 +145,7 @@ export default function LandingPage() {
 
     stopAutoScroll(); // also clears play timers
     setIsTransitioning(true);
-    setCurrentIndex(index);
+    setCurrentIndex(next);
   };
 
   // Previous slide
@@ -277,7 +317,7 @@ export default function LandingPage() {
                          mt-8 xl:mt-auto focus:outline-none focus:ring-none focus:text-stone-900"
               to="/product"
             >
-              Buy Now – $109.99
+              Shop Now
             </Link>
           </div>
 
