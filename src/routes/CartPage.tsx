@@ -134,7 +134,7 @@ export default function CartPage() {
 
       <button
         onClick={() => setShowPaymentForm(true)}
-        className="bg-brand text-gray-900 px-8 py-3 rounded-lg hover:opacity-90"
+        className="bg-brand text-slate-900 font-bold px-8 py-3 rounded-lg hover:opacity-90"
       >
         Checkout
       </button>

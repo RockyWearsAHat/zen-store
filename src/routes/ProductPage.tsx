@@ -7,6 +7,7 @@ import {
   FaChevronDown,
 } from "react-icons/fa6"; // + icons
 import { useState, useRef } from "react"; // ↞ new (for hover logic)
+import { IoCheckmark } from "react-icons/io5";
 
 /* small helper reused from ReviewsCarousel */
 function StarRating({ value }: { value: number }) {
@@ -22,7 +23,7 @@ function StarRating({ value }: { value: number }) {
               full
                 ? "text-yellow-400"
                 : half
-                ? "text-yellow-400/60"
+                ? "text-yellow-400"
                 : "text-gray-300"
             }
           >
@@ -65,7 +66,7 @@ function RatingBreakdown({
     <div
       onMouseEnter={enter}
       onMouseLeave={leave}
-      className="relative inline-flex items-center gap-2"
+      className="relative inline-flex items-center gap-2 bg-stone-900"
     >
       {/* numeric rating & stars inside hover zone */}
       <span className="text-sm text-gray-600">{rating.toFixed(1)}</span>
@@ -127,16 +128,33 @@ const product = {
 
 export default function ProductPage() {
   const { addItem } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
+  const [showAdded, setShowAdded] = useState(false);
+
+  function handleAddToCart() {
+    setIsAdding(true);
+    addItem({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      quantity: 1,
+    });
+    setShowAdded(true);
+    setTimeout(() => {
+      setIsAdding(false);
+      setShowAdded(false);
+    }, 2000);
+  }
 
   return (
     <section
       className="
         bg-stone-900 text-stone-100
-        pt-24 pb-12 px-4 sm:px-6 md:px-8
-        flex flex-col lg:flex-row        /* row only on ≥1024px */
+        pt-20 pb-12 px-4 sm:px-6 md:px-8   /* extra padding instead of lift */
+        flex flex-col lg:flex-row
         gap-8 lg:gap-12
         items-start max-w-6xl mx-auto
-        overflow-auto                   /* ensure page can scroll */
+        overflow-visible
       "
     >
       {/* limit gallery size & center on small screens */}
@@ -172,22 +190,17 @@ export default function ProductPage() {
           perfect for stress relief and décor.
         </p>
         <button
-          onClick={() =>
-            addItem({
-              id: product.id,
-              title: product.title,
-              price: product.price,
-              quantity: 1,
-            })
-          }
-          className="
-            w-full lg:w-auto
-            bg-brand text-gray-900
-            px-8 py-4 rounded-lg shadow border-1 hover:cursor-pointer hover:shadow-lg outline-2 outline-white/80
-            hover:opacity-90 transition focus:ring-4 focus:ring-white/40
-          "
+          onClick={handleAddToCart}
+          disabled={isAdding}
+          className="w-full lg:w-auto bg-brand text-slate-900 font-bold px-8 py-4 rounded-lg shadow border-1 hover:cursor-pointer hover:shadow-lg transition"
         >
-          Add to Cart
+          {showAdded ? (
+            <span className="inline-flex items-center gap-2">
+              <IoCheckmark /> Item Added To Cart
+            </span>
+          ) : (
+            "Add to Cart"
+          )}
         </button>
       </div>
     </section>

@@ -10,7 +10,7 @@ const App: React.FC = () => {
   return (
     <CartProvider>
       {/* dark canvas for every page */}
-      <div className="min-h-screen flex flex-col bg-stone-900 text-stone-100">
+      <div className="flex flex-col text-stone-100">
         <Header />
         <main className="flex-1">
           <Routes>

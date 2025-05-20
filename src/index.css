@@ -159,6 +159,20 @@
   .bg-yellow-400 {
     background-color: var(--color-gold-400);
   }
+
+  /* stable min-height that doesn’t change when the URL bar hides/shows */
+  .min-h-dvh {
+    min-height: 100dvh; /* modern browsers */
+  }
+}
+
+/* keep root node at least full-height as well */
+html,
+body,
+#root {
+  /* keep palette only */
+  background-color: var(--color-stone-300);
+  color: var(--color-stone-100);
 }
 
 /* ─── automatic dark mode (prefers-color-scheme) ───────────── */
@@ -212,7 +226,7 @@ html {
 .bg-white,
 .bg-gray-50,
 .bg-gray-100 {
-  background-color: var(--color-stone-800) !important;
+  background-color: var(--color-stone-200) !important;
 }
 
 /* keep text readable when components still use light text colours */
@@ -223,20 +237,32 @@ html {
 }
 
 /* ─── global canvas colors ─────────────────────────────────── */
-html {
-  color-scheme: dark;
-} /* dark-aware form controls */
-body {
-  background-color: var(--color-stone-900); /* deep charcoal */
-  color: var(--color-stone-100); /* light text */
+html,
+body,
+#root {
+  /* keep palette only */
+  background-color: var(--color-stone-900);
+  color: var(--color-stone-100);
 }
 
 /* ─── misc local utilities ─────────────────────────────────── */
 .no-scrollbar {
+  /* hide scrollbars on all browsers */
   scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+  */
+  -ms-overflow-style: none; /* IE and Edge */
+  overflow: -moz-scrollbars-none; /* Firefox */
 }
 .no-scrollbar::-webkit-scrollbar {
   /* Chrome, Safari, Edge */
   display: none;
+}
+
+/* ─── stop global width from changing (scroll-bar jitter) ─── */
+html,
+body {
+  overflow-x: hidden;
+  scrollbar-gutter: stable both-edges;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }

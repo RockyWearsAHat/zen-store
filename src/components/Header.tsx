@@ -7,7 +7,10 @@ export default function Header() {
   const count = items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
-    <header className="bg-stone-900 text-stone-100 p-4 flex justify-between fixed top-0 left-0 w-full z-50 border-b border-stone-800">
+    <header
+      className="bg-stone-900 text-stone-100 p-4 flex justify-between
+                 fixed top-0 left-0 w-full z-50 border-b border-stone-800"
+    >
       <Link to="/" className="font-bold text-xl">
         Zen Essentials
       </Link>
