@@ -266,3 +266,42 @@ body {
   margin: 0;
   padding: 0;
 }
+
+html,
+body {
+  /* Tailwind’s bg-stone-900 → #18181b */
+  background-color: #18181b;
+  min-height: 100%;
+}
+
+/* optional – stop iOS rubber-band overscroll from flashing white */
+body {
+  overscroll-behavior: none;
+}
+
+/* ─── fix white borders on mobile ──────────────────────────── */
+html,
+body {
+  /* always cover the *visual* viewport (URL bar shown / hidden, rotation…) */
+  min-height: 100dvh;
+  min-width: 100dvw;
+  background-color: var(--color-stone-900, #18181b); /* use a defined token */
+}
+
+/* extra safety – paint the whole viewport behind all content */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0; /* top 0; right 0; bottom 0; left 0; */
+  background: #18181b; /* same colour as the site background */
+  z-index: -1; /* keep it underneath everything */
+  pointer-events: none; /* don’t block interaction */
+}
+
+/* ─── responsive “zoom-out” for landscape phones ───────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* reduce the root font-size → all rem / em units scale down */
+  :root {
+    font-size: 87.5%; /* 14px when the default is 16px (≈ −12%) */
+  }
+}
