@@ -11,6 +11,7 @@ export interface CartItem {
   title: string;
   price: number; // dollars
   quantity: number;
+  image?: string; // ← new (optional)
 }
 
 interface CartCtx {

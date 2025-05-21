@@ -138,6 +138,7 @@ export default function ProductPage() {
       title: product.title,
       price: product.price,
       quantity: 1,
+      image: product.images[0], // ← new
     });
     setShowAdded(true);
     setTimeout(() => {
