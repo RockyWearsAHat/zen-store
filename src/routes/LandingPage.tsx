@@ -333,7 +333,7 @@ export default function LandingPage() {
           {/* Hero Image Carousel */}
           <div
             /* height-driven square (height from grid row ⇒ width auto) */
-            className="relative order-1 xl:order-2 w-full max-w-[650px] xl:max-w-none min-w-0 aspect-square 
+            className="relative order-1 xl:order-2 w-full max-w-[650px] xl:w-auto xl:max-w-none min-w-0 aspect-square 
                        max-h-[650px] mx-auto xl:mx-0 overflow-hidden flex-shrink-0
                        rounded-xl shadow-lg cursor-pointer"
             onClick={handleClick}
