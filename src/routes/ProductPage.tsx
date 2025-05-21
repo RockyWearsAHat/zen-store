@@ -158,7 +158,7 @@ export default function ProductPage() {
       "
     >
       {/* limit gallery size & center on small screens */}
-      <div className="flex-1 w-full max-w-lg mx-auto lg:mx-0">
+      <div className="flex-1 w-full max-w-lg mx-auto lg:mx-0 overflow-x-auto">
         <ImageGallery images={product.images} className="w-full h-auto" />
       </div>
 
