@@ -76,10 +76,13 @@ export default function CartPage() {
 
   if (items.length === 0)
     return (
-      <div className="p-8 text-center">
-        <p>Your cart is empty.</p>
-        <Link className="text-brand underline" to="/product">
-          Shop now
+      <div className="left-[50%] top-[50%] transform-[translate(-50%,-50%)] flex absolute flex-col items-center justify-center text-center">
+        <p className="text-xl mb-4 relative">Your cart is empty.</p>
+        <Link
+          className="relative w-full bg-brand text-slate-900 font-bold px-6 py-3 rounded-lg hover:opacity-90"
+          to="/"
+        >
+          Browse
         </Link>
       </div>
     );

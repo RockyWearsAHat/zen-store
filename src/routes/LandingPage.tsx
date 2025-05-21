@@ -326,7 +326,7 @@ export default function LandingPage() {
                          xl:static xl:rounded-lg xl:mt-auto"
               to="/product"
             >
-              Shop Now
+              Buy Now
             </Link>
           </div>
 
