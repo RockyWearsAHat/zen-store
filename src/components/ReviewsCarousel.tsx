@@ -107,7 +107,7 @@ export default function ReviewsCarousel() {
 
   useEffect(() => {
     function handleResize() {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 1280) {
         setDynamicBaseSets(3);
       } else {
         setDynamicBaseSets(1);

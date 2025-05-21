@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import ReviewsCarousel from "../components/ReviewsCarousel";
 import { useEffect, useState, useRef } from "react";
 
+// ---------------------------------------------------------------------------
+
 export default function LandingPage() {
   // Image sources
   const heroImages = [
@@ -140,7 +142,7 @@ export default function LandingPage() {
       }
     });
 
-    stopAutoScroll(); // ...existing code...
+    stopAutoScroll();
     setIsTransitioning(true);
     setCurrentIndex(next);
   };
@@ -331,8 +333,8 @@ export default function LandingPage() {
           {/* Hero Image Carousel */}
           <div
             /* height-driven square (height from grid row ⇒ width auto) */
-            className="relative order-1 xl:order-2 h-full aspect-square
-                       max-h-[650px] mx-auto xl:mx-0 overflow-hidden
+            className="relative order-1 xl:order-2 w-full max-w-[650px] xl:max-w-none min-w-0 aspect-square 
+                       max-h-[650px] mx-auto xl:mx-0 overflow-hidden flex-shrink-0
                        rounded-xl shadow-lg cursor-pointer"
             onClick={handleClick}
             onTouchStart={handleTouchStart}
@@ -395,9 +397,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FEATURES GRID – restore corrupted markup */}
-      <section className="bg-stone-900 pt-20 pb-12">
-        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-3 gap-12">
+      {/* FEATURES GRID */}
+      <section className="bg-stone-900 pt-20 pb-12 px-8">
+        <div className="max-w-lg sm:max-w-[650px] xl:max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-12">
           {[
             {
               icon: "💧",
@@ -428,8 +430,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="text-white py-16 text-center">
-        <div className="max-w-6xl mx-auto mb-10 px-6">
+      {/* REVIEWS */}
+      <section className="text-white py-16 text-center px-6">
+        <div className="max-w-lg sm:max-w-[650px] xl:max-w-6xl mx-auto">
           <ReviewsCarousel />
         </div>
       </section>
