@@ -140,31 +140,26 @@ export default function ImageGallery({ images, className = "" }: Props) {
         </div>
         {/* ----------------------------------------------------------------- */}
       </div>
+      {/* thumbnail strip */}
       <div
-        className="
-          flex gap-3 overflow-x-auto overscroll-x-contain touch-pan-y no-scrollbar         
-        "
+        /* allow horizontal scrolling on mobile, revert to normal on ≥sm */
+        className="no-scrollbar
+    mt-4 flex gap-2
+    overflow-x-auto sm:overflow-visible
+    -mx-2 px-2              /* little side-padding so first/last thumb aren’t cut off */
+    scroll-smooth           /* nicer feel */
+  "
       >
         {images.map((src, i) => (
-          <button
+          <img
             key={src}
             onClick={() => setCurrent(i)}
-            className={`h-20 w-24 flex-shrink-0 border-2 rounded-lg overflow-hidden ${
-              i === current ? "border-brand" : "border-transparent"
+            className={`w-20 h-20 object-cover cursor-pointer rounded flex-shrink-0 ${
+              i === current ? "" : "opacity-70 hover:opacity-100"
             }`}
-          >
-            {src.endsWith(".mp4") ? (
-              <video className="object-cover w-full h-full">
-                <source src={src} type="video/mp4" />
-              </video>
-            ) : (
-              <img
-                src={src}
-                alt={`Thumbnail ${i + 1}`}
-                className="object-cover w-full h-full"
-              />
-            )}
-          </button>
+            src={src}
+            alt=""
+          />
         ))}
       </div>
     </div>
