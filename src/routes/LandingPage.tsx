@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import ReviewsCarousel from "../components/ReviewsCarousel";
 import { useEffect, useState, useRef } from "react";
+import { GiWaterfall } from "react-icons/gi";
+import { PiFlowerLotus } from "react-icons/pi";
+import { IoVolumeMute } from "react-icons/io5";
 
 // ---------------------------------------------------------------------------
 
@@ -402,19 +405,19 @@ export default function LandingPage() {
         <div className="max-w-lg sm:max-w-[650px] xl:max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-12">
           {[
             {
-              icon: "💧",
+              icon: <GiWaterfall size={36} />,
               title: "Soothing Waterfall",
               desc: "Continuous and calming flow. Built for relaxation.",
             },
             {
-              icon: "🔇",
-              title: "Whisper-Quiet Pump",
-              desc: "Engineered for near-silent operation—perfect for your office.",
-            },
-            {
-              icon: "🌿",
+              icon: <PiFlowerLotus size={36} />,
               title: "Incense Holder",
               desc: "Create a serene atmosphere with your favorite scents.",
+            },
+            {
+              icon: <IoVolumeMute size={36} />,
+              title: "Whisper-Quiet Pump",
+              desc: "Engineered for near-silent operation—perfect for your office.",
             },
           ].map((f) => (
             <div
@@ -422,7 +425,9 @@ export default function LandingPage() {
               className="bg-stone-800 text-stone-100 rounded-xl p-8 shadow hover:shadow-lg
                          border border-stone-700 transition text-center"
             >
-              <div className="text-4xl mb-4">{f.icon}</div>
+              <div className="text-4xl mb-4 w-full text-center flex justify-center align-middle items-center text-brand">
+                {f.icon}
+              </div>
               <h3 className="text-xl font-bold mb-2">{f.title}</h3>
               <p className="text-stone-400">{f.desc}</p>
             </div>
