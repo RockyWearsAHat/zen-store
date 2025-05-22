@@ -3,7 +3,7 @@ import { useCart } from "../context/CartContext";
 import { calculateOrderAmount } from "../lib/pricing";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import CheckoutForm from "../components/CheckoutForm";
 
 // helpers for localStorage
@@ -81,6 +81,35 @@ export default function CartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
+  const pricePrevRef = useRef(0); // track last applied width
+
+  /* ---------- recompute price column width (grow & shrink) ---------- */
+  useLayoutEffect(() => {
+    const updatePriceWidth = () => {
+      let max = 0; // start at 0 – no hard minimum
+      document.querySelectorAll<HTMLElement>(".price-text").forEach((el) => {
+        const prev = el.style.width; // save fixed width
+        el.style.width = "auto"; // measure natural
+        max = Math.max(max, el.scrollWidth); // widest content
+        el.style.width = prev; // restore
+      });
+
+      if (max === pricePrevRef.current) return; // nothing changed
+      pricePrevRef.current = max;
+
+      document.documentElement.style.setProperty("--price-text", `${max}px`);
+      // update column itself to force immediate table re-layout
+      document
+        .querySelectorAll<HTMLTableColElement>("col.price-col")
+        .forEach((c) => (c.style.width = `${max + 32}px`)); // 12 icon + 20 gap
+    };
+
+    updatePriceWidth();
+    window.addEventListener("resize", updatePriceWidth);
+    return () => window.removeEventListener("resize", updatePriceWidth);
+  }, [items, subtotal]);
+  /* -------------------------------------------------------------------- */
+
   if (items.length === 0)
     return (
       <div className="mt-24 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex absolute flex-col items-center justify-center text-center">
@@ -106,24 +135,30 @@ export default function CartPage() {
 
           <div className="overflow-x-auto rounded-lg border border-stone-700 w-full">
             {/* Use table-fixed and w-full for the table itself */}
-            <table className="w-full table-fixed text-sm md:text-base">
+            <table className="w-full table-auto text-sm md:text-base">
+              <colgroup>
+                <col /> <col /> <col /> {/* img, title, qty */}
+                <col className="price-col" /> {/* price column */}
+              </colgroup>
+
               <thead>
                 <tr className="text-left text-stone-400">
-                  {/* Define precise column widths and smaller mobile padding */}
-                  <th className="py-2 px-1 md:px-3 w-14">Item</th>{" "}
-                  {/* 3.5rem / 56px */}
-                  <th className="py-2 px-1 md:px-3" />{" "}
-                  {/* Title column, flexible width */}
-                  <th className="py-2 px-1 md:px-3 w-16 text-center">
-                    Qty
-                  </th>{" "}
-                  {/* 4rem / 64px */}
-                  <th className="py-2 px-1 md:px-3 w-20 text-right">
-                    Price
-                  </th>{" "}
-                  {/* 5rem / 80px */}
-                  <th className="py-2 px-1 md:px-3 w-8 text-center" />{" "}
-                  {/* 2rem / 32px */}
+                  <th className="py-2 px-2 md:px-3 w-14">Item</th>
+                  <th className="py-2 px-2 md:px-3 w-auto" />
+                  {/* ↓ unify padding with body cell (px-1 on mobile) */}
+                  <th className="py-2 px-1 md:px-3 w-16">Qty</th>
+                  <th className="py-2 pl-1 pr-8 md:pl-2 md:pr-8">
+                    <div className="flex justify-end items-center gap-[20px]">
+                      {/* right-aligned like numbers */}
+                      <span
+                        className="price-text text-left truncate"
+                        style={{ width: "var(--price-text)" }} // ← was minWidth
+                      >
+                        Price
+                      </span>
+                      <span className="w-3 opacity-0 shrink-0">✕</span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
 
@@ -133,21 +168,20 @@ export default function CartPage() {
                     key={i.id}
                     className="border-t border-stone-700 h-14 align-middle"
                   >
-                    {/* image cell with consistent padding */}
-                    <td className="py-2 px-1 md:px-3">
+                    {/* image */}
+                    <td className="py-2 px-2 md:px-3">
                       <img
                         src={getItemImage(i)}
                         alt={i.title}
-                        className="w-14 h-14 object-cover rounded mx-auto" // Explicitly 56x56px
+                        className="w-14 aspect-square object-cover rounded mx-auto"
                       />
                     </td>
-
-                    {/* title cell with consistent padding */}
-                    <td className="py-2 px-1 md:px-3 truncate">{i.title}</td>
-
-                    {/* quantity cell with consistent padding */}
-                    <td className="py-2 px-1 md:px-3">
-                      <div className="h-8 flex items-center justify-center">
+                    <td className="py-2 px-1 md:px-2 truncate">{i.title}</td>
+                    {/* quantity – left-aligned, no jump */}
+                    <td className="py-2 px-1 md:px-2">
+                      <div className="h-8 flex items-center">
+                        {" "}
+                        {/* fixes vertical jump */}
                         <input
                           type="number"
                           min={1}
@@ -171,19 +205,23 @@ export default function CartPage() {
                       </div>
                     </td>
 
-                    {/* price cell with consistent padding */}
-                    <td className="py-2 px-1 md:px-3 text-right whitespace-nowrap">
-                      {formatCurrency(i.price * i.quantity)}
-                    </td>
-
-                    {/* delete cell with consistent padding */}
-                    <td className="py-2 px-1 md:px-3 text-center">
-                      <button
-                        onClick={() => removeItem(i.id)}
-                        className="text-red-500"
-                      >
-                        ✕
-                      </button>
+                    {/* ---------- price cell ---------- */}
+                    <td className="py-2 pl-1 pr-8 md:pl-2 md:pr-8">
+                      <div className="flex justify-end items-center gap-[20px]">
+                        {/* fixed width, grows left, no overflow into gap */}
+                        <span
+                          className="price-text text-right whitespace-nowrap"
+                          style={{ width: "var(--price-text)" }} // ← was minWidth
+                        >
+                          {formatCurrency(i.price * i.quantity)}
+                        </span>
+                        <button
+                          className="text-red-500 w-3 shrink-0"
+                          onClick={() => removeItem(i.id)}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
