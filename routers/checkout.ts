@@ -189,13 +189,28 @@ router.post(
     // calculate tax and fees
     const { tax, fee, total } = calculateOrderAmount(subtotal);
 
+    /* ---------- Stripe amount must be an INTEGER in the smallest currency unit ---------- */
+    const totalCents = Math.round(total); // ensure integer cents
+    const MAX_STRIPE_AMOUNT = 9_999_999_99; // 9 999 999.99 USD in cents
+    if (
+      !Number.isFinite(totalCents) ||
+      totalCents <= 0 ||
+      totalCents > MAX_STRIPE_AMOUNT
+    ) {
+      res
+        .status(400)
+        .json({ error: "Order total is out of acceptable range." });
+      return;
+    }
+    /* --------------------------------------------------------------------- */
+
     try {
       let intent: Stripe.PaymentIntent;
       if (paymentIntentId) {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         // ── UPDATE ──
         intent = await stripe.paymentIntents.update(paymentIntentId, {
-          amount: total, // total includes tax and fees
+          amount: totalCents, // integer cents
           payment_method_types: ["card"],
           metadata: {
             subtotal,
@@ -211,7 +226,7 @@ router.post(
         const orderNumber = generateOrderNumber();
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         intent = await stripe.paymentIntents.create({
-          amount: total, // total includes tax and fees
+          amount: totalCents, // integer cents
           currency: "usd",
           payment_method_types: ["card"],
           metadata: {

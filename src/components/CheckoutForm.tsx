@@ -80,7 +80,12 @@ export default function CheckoutForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh]">
+    // disable browser autofill – Stripe handles credentials itself
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 max-h-[80vh]"
+      autoComplete="off"
+    >
       <div className="space-y-2">
         <label htmlFor="email" className="font-semibold">
           Email
@@ -89,7 +94,9 @@ export default function CheckoutForm({
           id="email"
           type="email"
           required
-          className="w-full border border-gray-300 rounded px-3 py-2"
+          className="w-full border border-brand bg-brand text-stone-900
+                     placeholder-stone-900 rounded px-3 py-2
+                     focus:outline-none focus:ring-2 focus:ring-brand"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -123,7 +130,7 @@ export default function CheckoutForm({
       )}
       <button
         disabled={loading || !stripe}
-        className="hover:cursor-pointer bg-brand text-gray-900 w-full py-3 rounded-lg font-semibold disabled:opacity-50"
+        className="hover:cursor-pointer bg-brand text-stone-900 w-full py-3 rounded-lg font-semibold disabled:opacity-50"
       >
         {loading ? "Processing…" : "Pay Now"}
       </button>

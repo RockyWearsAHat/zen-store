@@ -305,3 +305,40 @@ body::before {
     font-size: 87.5%; /* 14px when the default is 16px (≈ −12%) */
   }
 }
+
+/* ─── keep beige background when the browser autofills inputs ───────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  background-color: var(--color-brand-400) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--color-brand-400) inset !important;
+  /* identical box-shadow for Firefox / others */
+  box-shadow: 0 0 0 1000px var(--color-brand-400) inset !important;
+  -webkit-text-fill-color: var(--color-stone-900) !important;
+  caret-color: var(--color-stone-900) !important;
+  color-scheme: dark;
+}
+
+/* ---------- quantity picker visibility ---------- */
+.qty-select-mobile {
+  display: none;
+}
+.qty-input-desktop {
+  display: block;
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .qty-select-mobile {
+    display: block;
+  } /* wheel-scroller */
+  .qty-input-desktop {
+    display: none;
+  }
+}
+/* ----------------------------------------------- */

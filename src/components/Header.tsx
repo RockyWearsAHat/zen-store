@@ -4,7 +4,14 @@ import { useCart } from "../context/CartContext";
 
 export default function Header() {
   const { items } = useCart();
-  const count = items.reduce((sum, i) => sum + i.quantity, 0);
+  const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
+
+  let displayCount: string;
+  if (totalQuantity > 99) {
+    displayCount = "99+";
+  } else {
+    displayCount = totalQuantity.toString();
+  }
 
   return (
     <header
@@ -17,12 +24,12 @@ export default function Header() {
       <nav className="flex items-center gap-6">
         <Link to="/cart" aria-label="Cart" className="relative text-stone-100">
           <FaShoppingCart size={22} />
-          {count > 0 && (
+          {totalQuantity > 0 && (
             <span
-              className="absolute -top-2 -right-2 bg-red-500 text-white
+              className="absolute -top-2 text-[9px] text-center -right-2 bg-red-500 text-white
                    rounded-full w-5 h-5 text-xs flex items-center justify-center"
             >
-              {count}
+              {displayCount}
             </span>
           )}
         </Link>
