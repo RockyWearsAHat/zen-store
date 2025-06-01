@@ -19,6 +19,7 @@
     "express": "^5.1.0",
     "glob": "^11.0.2",
     "magic-string": "^0.30.17",
+    "mongoose": "^8.15.1",
     "nodemailer": "^6.9.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
