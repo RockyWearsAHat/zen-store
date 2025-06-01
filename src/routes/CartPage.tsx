@@ -5,6 +5,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import CheckoutForm from "../components/CheckoutForm";
+import { stripeAppearance } from "../lib/stripeAppearance";
 
 // helpers for localStorage
 /* guard against the literal string "undefined" leaking into Stripe */
@@ -135,10 +136,11 @@ export default function CartPage() {
 
           <div className="overflow-x-auto rounded-lg border border-stone-700 w-full">
             {/* Use table-fixed and w-full for the table itself */}
-            <table className="w-full table-auto text-sm md:text-base">
+            <table className="w-full table-fixed text-left">
               <colgroup>
-                <col /> <col /> <col /> {/* img, title, qty */}
-                <col className="price-col" /> {/* price column */}
+                <col className="w-24" />
+                <col />
+                <col className="w-24" />
               </colgroup>
 
               <thead>
@@ -250,7 +252,7 @@ export default function CartPage() {
       </div>
       {showPaymentForm && clientSecret && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.5)] p-4">
-          <div className="relative bg-white w-full max-w-lg rounded-xl overflow-y-auto max-h-full p-4">
+          <div className="relative bg-stone-900 text-stone-100 w-full max-w-lg rounded-xl overflow-y-auto max-h-full p-4 border border-stone-700">
             <button
               onClick={() => setShowPaymentForm(false)}
               className="absolute top-3 right-3 text-2xl"
@@ -259,19 +261,13 @@ export default function CartPage() {
             </button>
             <Elements
               stripe={stripePromise}
-              options={{
-                clientSecret,
-                appearance: {
-                  theme: "flat",
-                  variables: { spacingUnit: "2px", fontSizeBase: "14px" },
-                },
-              }}
+              options={{ clientSecret, appearance: stripeAppearance }}
             >
               <CheckoutForm
                 clientSecret={clientSecret}
                 email={email}
                 setEmail={setEmail}
-                setShipping={setShipping} // ← new
+                setShipping={setShipping}
               />
             </Elements>
           </div>

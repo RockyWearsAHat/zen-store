@@ -5,6 +5,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useEffect, useState } from "react";
 import CheckoutForm from "../components/CheckoutForm";
+import { stripeAppearance } from "../lib/stripeAppearance";
 
 // helpers for localStorage
 /* guard against the literal string "undefined" leaking into Stripe */
@@ -153,19 +154,13 @@ export default function CartPage() {
             </button>
             <Elements
               stripe={stripePromise}
-              options={{
-                clientSecret,
-                appearance: {
-                  theme: "flat",
-                  variables: { spacingUnit: "2px", fontSizeBase: "14px" },
-                },
-              }}
+              options={{ clientSecret, appearance: stripeAppearance }}
             >
               <CheckoutForm
                 clientSecret={clientSecret}
                 email={email}
                 setEmail={setEmail}
-                setShipping={setShipping} // ← new
+                setShipping={setShipping}
               />
             </Elements>
           </div>

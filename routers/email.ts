@@ -141,7 +141,7 @@ async function getUPSLocation(
 }
 
 /* ---------- constants ---------- */
-const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // published sample, should stay live
+const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // kept as fallback
 const FALLBACK_LABEL = "United States";
 const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
@@ -200,8 +200,9 @@ export async function sendSuccessEmail(
     (intent.metadata && intent.metadata.order_number) || intent.id;
 
   /* ── live UPS location (free) ─────────────────────────────── */
-  const trackingNumber = DEMO_UPS_NUMBER; // latest demo number
-  const trackBaseUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`;
+  const trackingNumber =
+    (intent.metadata && intent.metadata.ali_tracking) || DEMO_UPS_NUMBER;
+  const trackBaseUrl = `https://parcelsapp.com/en/tracking/${trackingNumber}`;
 
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;

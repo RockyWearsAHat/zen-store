@@ -80,7 +80,11 @@ export default function CheckoutForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh]">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 max-h-[80vh] text-stone-100 bg-stone-900 p-4 rounded-lg"
+    >
+      {/* ------------ EMAIL ------------ */}
       <div className="space-y-2">
         <label htmlFor="email" className="font-semibold">
           Email
@@ -89,11 +93,15 @@ export default function CheckoutForm({
           id="email"
           type="email"
           required
-          className="w-full border border-gray-300 rounded px-3 py-2"
+          /* unify with Stripe beige */
+          className="w-full rounded px-3 py-2 bg-[#d2b277] text-[#1c1917]
+                     placeholder-[#1c1917]/70 focus:outline-none focus:ring-0"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
+
+      {/* ----------- ADDRESS ------------ */}
       <div className="space-y-2">
         <label htmlFor="address" className="font-semibold">
           Address
@@ -109,6 +117,8 @@ export default function CheckoutForm({
           }}
         />
       </div>
+
+      {/* PaymentElement already picks up colours from appearance */}
       <PaymentElement
         id="payment-element"
         options={{
@@ -118,12 +128,16 @@ export default function CheckoutForm({
           },
         }}
       />
+
       {total !== null && (
         <div className="text-lg font-bold">Total: ${total.toFixed(2)}</div>
       )}
+
       <button
         disabled={loading || !stripe}
-        className="hover:cursor-pointer bg-brand text-gray-900 w-full py-3 rounded-lg font-semibold disabled:opacity-50"
+        /* same beige as inputs for perfect match */
+        className="hover:cursor-pointer bg-[#d2b277] text-[#1c1917] w-full py-3
+                   rounded-lg font-semibold disabled:opacity-50 mb-3"
       >
         {loading ? "Processing…" : "Pay Now"}
       </button>

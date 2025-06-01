@@ -4,8 +4,16 @@ import { calculateOrderAmount } from "../src/lib/pricing";
 import { Buffer } from "node:buffer";
 
 // ─── simple in‑memory catalogue ───────────────────────────────────────────────
-const catalogue: Record<string, { title: string; price: number }> = {
-  "desktop-fountain": { title: "ZenFlow™ Desktop Fountain", price: 109.99 },
+const catalogue: Record<
+  string,
+  { title: string; price: number; aliId: string }
+> = {
+  // internal SKU ─────────────── title ─────────── price ─ aliExpress id
+  "desktop-fountain": {
+    title: "ZenFlow™ Desktop Fountain",
+    price: 109.99,
+    aliId: "3256808853336519", // ← new
+  },
   // add more products here…
 };
 // ──────────────────────────────────────────────────────────────────────────────
@@ -179,9 +187,10 @@ router.post(
       return product ? sum + product.price * i.quantity : sum;
     }, 0);
 
-    // add title → will end up in PaymentIntent.metadata.items
+    // add title & aliId → stored in PI.metadata.items
     const itemsForMeta = items.map((i: any) => ({
       id: i.id,
+      aliId: catalogue[i.id]?.aliId,
       title: catalogue[i.id]?.title ?? i.id,
       quantity: i.quantity,
     }));
@@ -196,7 +205,7 @@ router.post(
         // ── UPDATE ──
         intent = await stripe.paymentIntents.update(paymentIntentId, {
           amount: total, // total includes tax and fees
-          payment_method_types: ["card"],
+          payment_method_types: ["card", "alipay"], // allow AliPay (AliExpress) wallet
           metadata: {
             subtotal,
             tax,
@@ -213,7 +222,7 @@ router.post(
         intent = await stripe.paymentIntents.create({
           amount: total, // total includes tax and fees
           currency: "usd",
-          payment_method_types: ["card"],
+          payment_method_types: ["card", "alipay"], // allow AliPay (AliExpress) wallet
           metadata: {
             order_number: orderNumber, // ← new
             subtotal,
