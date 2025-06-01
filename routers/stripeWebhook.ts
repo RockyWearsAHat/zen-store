@@ -125,9 +125,9 @@ router.post(
         profit = 0;
       try {
         const raw = JSON.parse(intent.metadata.items ?? "[]");
-        // convert to AliExpress product ids
+        // Use aliId for AliExpress product id
         const itemsForAli = raw.map((i: any) => ({
-          id: i.aliId || i.id, // fall back to id if aliId missing
+          id: i.aliId, // always use aliId
           quantity: i.quantity,
         }));
 

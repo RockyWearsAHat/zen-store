@@ -190,7 +190,7 @@ router.post(
     // add title & aliId → stored in PI.metadata.items
     const itemsForMeta = items.map((i: any) => ({
       id: i.id,
-      aliId: catalogue[i.id]?.aliId,
+      aliId: catalogue[i.id]?.aliId, // always include aliId for order
       title: catalogue[i.id]?.title ?? i.id,
       quantity: i.quantity,
     }));
