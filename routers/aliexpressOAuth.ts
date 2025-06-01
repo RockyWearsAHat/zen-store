@@ -19,7 +19,7 @@ router.get("/ali/oauth/start", (_req, res) => {
   const state = crypto.randomBytes(8).toString("hex"); // optional CSRF token
   const authUrl =
     `https://oauth.aliexpress.com/authorize` + // ✔ correct host
-    `?app_id=${APP_KEY}` + // ✔ correct param
+    `?client_id=${APP_KEY}` + // ← Corrected: app_id to client_id
     `&redirect_uri=${redirect}` +
     `&response_type=code` +
     `&state=${state}`;
