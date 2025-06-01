@@ -121,9 +121,7 @@ router.post(
       }
 
       /* ---------- create AliExpress order now that funds have cleared ---------- */
-      let aliOrderId,
-        aliTracking,
-        aliCost = 0,
+      let aliCost = 0,
         profit = 0;
       try {
         const raw = JSON.parse(intent.metadata.items ?? "[]");
@@ -140,8 +138,6 @@ router.post(
               ? JSON.parse(intent.metadata.shipping)
               : null
           );
-        aliOrderId = orderId;
-        aliTracking = trackingNumber;
         aliCost = orderCost;
         const feeUsd = parseFloat(intent.metadata?.stripe_fee_usd ?? "0");
         profit = intent.amount / 100 - feeUsd - aliCost;
