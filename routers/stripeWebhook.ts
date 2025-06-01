@@ -42,7 +42,41 @@ router.post(
         expand: ["latest_charge.balance_transaction", "payment_method"],
       })) as Stripe.PaymentIntent;
 
-      await createPayoutForIntent(intent); // ← use helper
+      // ---------- create AliExpress order immediately ----------
+      let aliOrderId = "",
+        aliTracking = "",
+        aliCost = 0;
+      try {
+        const raw = JSON.parse(intent.metadata.items ?? "[]");
+        const itemsForAli = raw.map((i: any) => ({
+          id: i.aliId, // always use aliId
+          quantity: i.quantity,
+        }));
+
+        const { orderId, trackingNumber, orderCost } =
+          await createAliExpressOrder(
+            itemsForAli,
+            intent.metadata.shipping
+              ? JSON.parse(intent.metadata.shipping)
+              : null
+          );
+        aliOrderId = orderId;
+        aliTracking = trackingNumber;
+        aliCost = orderCost;
+
+        await stripe.paymentIntents.update(intent.id, {
+          metadata: {
+            ali_order_id: orderId,
+            ali_tracking: trackingNumber,
+            ali_cost_usd: aliCost,
+          },
+        });
+        console.log("📦 AliExpress order placed (immediate):", orderId);
+      } catch (err) {
+        console.error("AliExpress order failed (immediate):", err);
+      }
+
+      await createPayoutForIntent(intent); // ← payout after order
 
       /* ---------- e-mail / card-brand logging ---------- */
       const charge = intent.latest_charge as Stripe.Charge | null; // ← added
