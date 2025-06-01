@@ -43,22 +43,18 @@ router.get("/ali/oauth/debug", (_req, res) => {
 
 /* Build the authorization URL using correct parameters */
 function buildAuthUrl() {
-  // This is the correct URL according to current AliExpress documentation
+  // Per latest docs, use /oauth2/authorize and app_key
   const baseUrl = "https://auth.aliexpress.com/oauth2/authorize";
-
   const params = new URLSearchParams();
-  params.append("app_key", APP_KEY); // Use app_key, not client_id
+  params.append("app_key", APP_KEY);
   params.append(
     "redirect_uri",
     "https://zen-essentials.store/ali/oauth/callback"
   );
   params.append("response_type", "code");
   params.append("state", crypto.randomBytes(8).toString("hex"));
-  params.append("site", "aliexpress"); // Required parameter per docs
-
-  const authUrl = `${baseUrl}?${params.toString()}`;
-  console.log("Authorization URL:", authUrl);
-  return authUrl;
+  params.append("site", "aliexpress");
+  return `${baseUrl}?${params.toString()}`;
 }
 
 /* ── OAuth flow start ────────────────────────────────────────── */
@@ -79,26 +75,49 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
   try {
     console.log("Received authorization code:", code);
 
-    // Per current docs: https://openservice.aliexpress.com/doc/api.htm#/api?cid=3&path=/auth/token/security/create
+    // Per latest docs, use /auth/token/security/create with signing
     const createTokenUrl =
       "https://api.aliexpress.com/auth/token/security/create";
+    const timestamp = Date.now().toString();
+    const uuid = crypto.randomUUID();
 
-    // Format exactly as shown in the documentation
+    // Build params for signing
+    const paramsForSign: Record<string, string> = {
+      app_key: APP_KEY,
+      timestamp,
+      sign_method: "sha256",
+      code,
+      uuid,
+    };
+
+    // Build the string to sign
+    const sortedKeys = Object.keys(paramsForSign).sort();
+    const baseStr =
+      APP_SECRET +
+      sortedKeys.map((k) => k + paramsForSign[k]).join("") +
+      APP_SECRET;
+    const sign = crypto
+      .createHash("sha256")
+      .update(baseStr)
+      .digest("hex")
+      .toUpperCase();
+
+    // Build POST body
     const tokenRequestParams = new URLSearchParams();
-    tokenRequestParams.append("client_id", APP_KEY);
-    tokenRequestParams.append("client_secret", APP_SECRET);
+    tokenRequestParams.append("app_key", APP_KEY);
+    tokenRequestParams.append("timestamp", timestamp);
+    tokenRequestParams.append("sign_method", "sha256");
+    tokenRequestParams.append("sign", sign);
     tokenRequestParams.append("code", code);
-    tokenRequestParams.append("grant_type", "authorization_code");
-    tokenRequestParams.append(
-      "redirect_uri",
-      "https://zen-essentials.store/ali/oauth/callback"
-    );
+    tokenRequestParams.append("uuid", uuid);
 
     console.log("Token request params:", tokenRequestParams.toString());
 
     const tokenResponse = await fetch(createTokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
       body: tokenRequestParams,
     });
 

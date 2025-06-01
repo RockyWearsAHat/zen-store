@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "crypto";
 import mongoose from "mongoose";
 import { connectDB } from "./db";
 
@@ -78,77 +79,91 @@ export async function createAliExpressOrder(
     phone: string;
   } | null
 ): Promise<AliOrderResult> {
-  const accessToken = await getValidAccessToken();
+  if (!items.length) throw new Error("No items passed to AliExpress order");
 
-  // Build order lines as per docs
-  const orderLines = items.map((i) => ({
-    product_id: i.id,
-    quantity: i.quantity,
-  }));
+  const ACCESS_TOKEN = await getValidAccessToken();
 
-  // Build shipping address as per docs
-  const logisticsAddress = shipping
-    ? {
-        contact_name: `${shipping.firstName} ${shipping.lastName}`,
-        country: shipping.country,
-        province: shipping.state,
-        city: shipping.city,
-        address: shipping.address1,
-        zip: shipping.zip,
-        phone: shipping.phone,
-      }
-    : undefined;
+  // Build order payload per AliExpress API
+  const timestamp = Date.now().toString();
+  const uuid = crypto.randomUUID();
 
-  // 1️⃣ Create order
-  const createResp = await fetch("https://api-sg.aliexpress.com/order/create", {
+  // Build params for signing
+  const paramsForSign: Record<string, string> = {
+    app_key: process.env.ALI_APP_KEY!,
+    timestamp,
+    sign_method: "sha256",
+    access_token: ACCESS_TOKEN,
+    uuid,
+  };
+
+  // Build the string to sign
+  const sortedKeys = Object.keys(paramsForSign).sort();
+  const baseStr =
+    process.env.ALI_APP_SECRET! +
+    sortedKeys.map((k) => k + paramsForSign[k]).join("") +
+    process.env.ALI_APP_SECRET!;
+  const sign = crypto
+    .createHash("sha256")
+    .update(baseStr)
+    .digest("hex")
+    .toUpperCase();
+
+  // Build POST body
+  const orderPayload: any = {
+    product_list: items.map((i) => ({
+      product_id: i.id, // SKU
+      product_count: i.quantity,
+    })),
+  };
+
+  if (shipping) {
+    orderPayload.receive_address = {
+      contact_name: shipping.firstName + " " + shipping.lastName,
+      phone: shipping.phone,
+      province: shipping.state,
+      city: shipping.city,
+      detail_address: shipping.address1,
+      zip_code: shipping.zip,
+      country: shipping.country,
+    };
+  }
+
+  const bodyParams = new URLSearchParams();
+  bodyParams.append("app_key", process.env.ALI_APP_KEY!);
+  bodyParams.append("timestamp", timestamp);
+  bodyParams.append("sign_method", "sha256");
+  bodyParams.append("sign", sign);
+  bodyParams.append("access_token", ACCESS_TOKEN);
+  bodyParams.append("uuid", uuid);
+  bodyParams.append("biz_content", JSON.stringify(orderPayload));
+
+  const endpoint = "https://api.aliexpress.com/order/create"; // Use the correct endpoint
+
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
-      "content-type": "application/json",
-      "x-ae-app-key": process.env.ALI_APP_KEY!,
-      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/x-www-form-urlencoded;charset=utf-8",
     },
-    body: JSON.stringify({
-      order_lines: orderLines,
-      logistics_address: logisticsAddress,
-    }),
-  }).then((r) => r.json());
+    body: bodyParams,
+  });
 
-  if (!createResp.order_id) {
+  const json: any = await res.json();
+
+  if (json?.error_response) {
     throw new Error(
-      "AliExpress order creation failed: " +
-        (createResp.error_msg || JSON.stringify(createResp))
+      `AliExpress error ${json.error_response.code}: ${json.error_response.msg}`
     );
   }
-  const orderId = createResp.order_id as string;
 
-  // 2️⃣ Pay for order
-  const payResp = await fetch("https://api-sg.aliexpress.com/order/pay", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ae-app-key": process.env.ALI_APP_KEY!,
-      authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ order_id: orderId }),
-  }).then((r) => r.json());
+  const result = json.result;
 
-  const orderCost = Number(payResp.order_amount || 0);
-
-  // 3️⃣ Get tracking number
-  const trackResp = await fetch(
-    `https://api-sg.aliexpress.com/order/${orderId}/tracking`,
-    {
-      headers: {
-        "x-ae-app-key": process.env.ALI_APP_KEY!,
-        authorization: `Bearer ${accessToken}`,
-      },
-    }
-  ).then((r) => r.json());
+  if (!result || !result.trade_order_id)
+    throw new Error("Unexpected AliExpress response format");
 
   return {
-    orderId,
-    trackingNumber: trackResp.tracking_no ?? "PENDING",
-    orderCost,
+    orderId: result.trade_order_id.toString(),
+    trackingNumber: result.waybill_no_list?.[0]?.mail_no?.toString() ?? null,
+    orderCost: Number(result.order_amount ?? 0) / 100, // convert cents → USD
   };
 }
 
