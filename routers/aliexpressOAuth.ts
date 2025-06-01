@@ -23,39 +23,53 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       need_refresh_token: "true",
-      app_key: APP_KEY,
-      app_secret: APP_SECRET,
+      client_id: APP_KEY, // ← correct param name
+      client_secret: APP_SECRET, // ← correct param name
       code,
     });
 
-    const json = await fetch("https://api-seller.aliexpress.com", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    }).then((r) => r.json() as Promise<any>);
+    const json: any = await fetch(
+      "https://api-seller.aliexpress.com/oauth2/token", // ← correct endpoint
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+      }
+    ).then((r) => r.json());
 
-    if (json.error) throw new Error(json.error_description ?? json.error);
+    if (json?.error_response) {
+      const { code: ecode, msg } = json.error_response;
+      throw new Error(`AliExpress ${ecode}: ${msg}`);
+    }
 
     await connectDB();
     await AliToken.findOneAndUpdate(
-      {}, // single-doc collection
+      {},
       {
         access_token: json.access_token,
         refresh_token: json.refresh_token,
-        expires_at: new Date(Date.now() + json.expires_in * 1000),
+        expires_at: new Date(Date.now() + Number(json.expires_in) * 1000),
       },
       { upsert: true, new: true }
     );
 
-    res.send("AliExpress tokens saved. You may close this window.");
+    // simple success page
+    res.send(
+      `<html><body style="font-family:system-ui,sans-serif;padding:32px">
+         <h2>✅ AliExpress connected!</h2>
+         <p>You may close this tab.</p>
+       </body></html>`
+    );
   } catch (err: any) {
     console.error("AliExpress OAuth error:", err);
-    res.status(500).send("AliExpress OAuth failed: " + err.message);
+    res
+      .status(500)
+      .send(`AliExpress OAuth failed:<br/><pre>${err.message}</pre>`);
   }
 });
 
 /* ── 2) Manual refresh endpoint (optional) ────────────────────────── */
-router.post("/ali/oauth/refresh", async (_req: Request, res: Response) => {
+router.post("/ali/oauth/refresh", async (_req, res) => {
   try {
     await connectDB();
     const tok = await AliToken.findOne().exec();
@@ -64,21 +78,27 @@ router.post("/ali/oauth/refresh", async (_req: Request, res: Response) => {
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: tok.refresh_token,
-      app_key: APP_KEY,
-      app_secret: APP_SECRET,
+      client_id: APP_KEY, // ← correct param name
+      client_secret: APP_SECRET, // ← correct param name
     });
 
-    const json = await fetch("https://api-seller.aliexpress.com", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    }).then((r) => r.json() as Promise<any>);
+    const json: any = await fetch(
+      "https://api-seller.aliexpress.com/oauth2/token", // ← correct endpoint
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+      }
+    ).then((r) => r.json());
 
-    if (json.error) throw new Error(json.error_description ?? json.error);
+    if (json?.error_response) {
+      const { msg } = json.error_response;
+      throw new Error(msg);
+    }
 
     tok.access_token = json.access_token;
     tok.refresh_token = json.refresh_token ?? tok.refresh_token;
-    tok.expires_at = new Date(Date.now() + json.expires_in * 1000);
+    tok.expires_at = new Date(Date.now() + Number(json.expires_in) * 1000);
     await tok.save();
 
     res.json({ ok: true, expiresAt: tok.expires_at });
