@@ -11,12 +11,12 @@ import serverless from "serverless-http";
 
 export const app = express();
 
+// Mount webhook route first, before body parsers
+app.use("/api/webhook", stripeWebhookRouter);
+
 // ---------- add OAuth routes ----------
 app.use(aliexpressOAuthRouter); // ← add
 // ---------- end OAuth mount -------------
-
-// Mount webhook route first, before body parsers
-app.use("/api/webhook", stripeWebhookRouter);
 
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(json());
