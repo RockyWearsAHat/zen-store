@@ -19,7 +19,7 @@ router.get("/ali/oauth/start", (_req, res) => {
   const state = crypto.randomBytes(8).toString("hex"); // optional CSRF token
   const authUrl =
     `https://oauth.aliexpress.com/authorize` + // ✔ correct host
-    `?client_id=${APP_KEY}` + // ← Corrected: app_id to client_id
+    `?client_id=${APP_KEY}` + // This is correct for the authorization step
     `&redirect_uri=${redirect}` +
     `&response_type=code` +
     `&state=${state}`;
@@ -40,14 +40,15 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       need_refresh_token: "true",
-      client_id: APP_KEY, // ← Changed back to client_id
-      client_secret: APP_SECRET, // ← Changed back to client_secret
+      client_id: APP_KEY, // Adding client_id
+      app_key: APP_KEY,
+      app_secret: APP_SECRET,
       code,
-      redirect_uri: "https://zen-essentials.store/ali/oauth/callback", // Recommended to include
+      redirect_uri: "https://zen-essentials.store/ali/oauth/callback",
     });
 
     const json: any = await fetch(
-      "https://api-seller.aliexpress.com/oauth/token", // Standard endpoint often uses /oauth/token
+      "https://api.aliexpress.com/oauth/token", // ← Changed endpoint
       {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -96,13 +97,13 @@ router.post("/ali/oauth/refresh", async (_req, res) => {
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: tok.refresh_token,
-      client_id: APP_KEY, // ← Changed back to client_id
-      client_secret: APP_SECRET, // ← Changed back to client_secret
-      // redirect_uri: "https://zen-essentials.store/ali/oauth/callback", // Not always needed for refresh
+      client_id: APP_KEY, // Adding client_id
+      app_key: APP_KEY,
+      app_secret: APP_SECRET,
     });
 
     const json: any = await fetch(
-      "https://api-seller.aliexpress.com/oauth/token", // Standard endpoint
+      "https://api.aliexpress.com/oauth/token", // ← Changed endpoint
       {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
