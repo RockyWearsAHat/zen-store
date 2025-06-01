@@ -3,12 +3,30 @@ import { URLSearchParams } from "url";
 import "dotenv/config";
 import { AliToken } from "../aliexpress"; // ← re-use model
 import { connectDB } from "../db";
+import crypto from "crypto";
 
 /* env */
 const APP_KEY = process.env.ALI_APP_KEY!;
 const APP_SECRET = process.env.ALI_APP_SECRET!;
 
 const router = Router();
+
+/* ── new helper: launch OAuth flow ────────────────────────────────── */
+router.get("/ali/oauth/start", (_req, res) => {
+  const redirect = encodeURIComponent(
+    "https://zen-essentials.store/ali/oauth/callback"
+  );
+  const state = crypto.randomBytes(8).toString("hex"); // optional CSRF token
+  const authUrl =
+    `https://auth.aliexpress.com/oauth2/authorize` +
+    `?client_id=${APP_KEY}` +
+    `&redirect_uri=${redirect}` +
+    `&response_type=code` +
+    `&site=aliexpress` +
+    `&state=${state}`;
+
+  res.redirect(authUrl);
+});
 
 /* ── 1) OAuth callback (redirect_uri) ─────────────────────────────── */
 router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
