@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { URLSearchParams } from "url";
 import "dotenv/config";
-import { AliToken } from "../aliexpress"; // ← re-use model
+import { AliToken } from "../aliexpress";
 import { connectDB } from "../db";
 import crypto from "crypto";
 
@@ -11,23 +11,41 @@ const APP_SECRET = process.env.ALI_APP_SECRET!;
 
 const router = Router();
 
-/* ── new helper: launch OAuth flow ────────────────────────────────── */
+/* Debug endpoint to verify environment variables are correctly loaded */
+router.get("/ali/oauth/check-env", (_req, res) => {
+  // Obscure part of the key for security but show enough to verify
+  const keyPreview = APP_KEY
+    ? `${APP_KEY.substring(0, 2)}...${APP_KEY.substring(APP_KEY.length - 1)}`
+    : "NOT SET";
+
+  const secretSet = APP_SECRET ? "SET (hidden)" : "NOT SET";
+
+  res.send(`
+    <h1>AliExpress Environment Check</h1>
+    <p>APP_KEY: ${keyPreview}</p>
+    <p>APP_SECRET: ${secretSet}</p>
+    <p><a href="/ali/oauth/start">Click here to start OAuth</a></p>
+  `);
+});
+
+/* ── OAuth flow start - generate authorization URL ────────────── */
 router.get("/ali/oauth/start", (_req, res) => {
-  const redirect = encodeURIComponent(
-    "https://zen-essentials.store/ali/oauth/callback"
-  );
-  const state = crypto.randomBytes(8).toString("hex"); // optional CSRF token
+  const redirectUri = "https://zen-essentials.store/ali/oauth/callback";
+  const state = crypto.randomBytes(8).toString("hex");
+
+  // AliExpress Dropshipping API expects appkey (not client_id)
   const authUrl =
-    `https://oauth.aliexpress.com/authorize` + // ✔ correct host
-    `?client_id=${APP_KEY}` + // This is correct for the authorization step
-    `&redirect_uri=${redirect}` +
+    `https://auth.aliexpress.com/oauth2/authorize` +
+    `?app_key=${APP_KEY}` + // CORRECT: app_key (with underscore)
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_type=code` +
     `&state=${state}`;
 
+  console.log("Redirecting to AliExpress auth URL:", authUrl);
   res.redirect(authUrl);
 });
 
-/* ── 1) OAuth callback (redirect_uri) ─────────────────────────────── */
+/* ── OAuth callback (processes authorization code) ─────────────── */
 router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
   if (!code) {
@@ -36,29 +54,44 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
   }
 
   try {
-    /* exchange code → tokens */
-    const body = new URLSearchParams({
+    console.log("Received authorization code:", code);
+
+    /* Exchange code for tokens - CAREFULLY FORMATTED per AliExpress docs */
+    const requestBody = new URLSearchParams({
       grant_type: "authorization_code",
-      need_refresh_token: "true",
-      client_id: APP_KEY, // Adding client_id
-      app_key: APP_KEY,
-      app_secret: APP_SECRET,
       code,
       redirect_uri: "https://zen-essentials.store/ali/oauth/callback",
     });
 
-    const json: any = await fetch(
-      "https://api.aliexpress.com/oauth/token", // ← Changed endpoint
-      {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body,
-      }
-    ).then((r) => r.json());
+    // Add app_key and secret as QUERY PARAMETERS (not in body)
+    const tokenUrl =
+      `https://gw.api.alibaba.com/openapi/param2/1/system.oauth2/getToken` +
+      `/${APP_KEY}?${requestBody.toString()}`;
 
-    if (json?.error_response) {
-      const { code: ecode, msg } = json.error_response;
-      throw new Error(`AliExpress ${ecode}: ${msg}`);
+    console.log("Token exchange URL:", tokenUrl);
+
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${APP_KEY}:${APP_SECRET}`
+        ).toString("base64")}`,
+      },
+    });
+
+    const responseText = await response.text();
+    console.log("Token response:", responseText);
+
+    let json: any;
+    try {
+      json = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error(`Failed to parse response as JSON: ${responseText}`);
+    }
+
+    if (json?.error || !json?.access_token) {
+      throw new Error(`AliExpress error: ${JSON.stringify(json, null, 2)}`);
     }
 
     await connectDB();
@@ -72,61 +105,34 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
       { upsert: true, new: true }
     );
 
-    // simple success page
-    res.send(
-      `<html><body style="font-family:system-ui,sans-serif;padding:32px">
-         <h2>✅ AliExpress connected!</h2>
-         <p>You may close this tab.</p>
-       </body></html>`
-    );
+    res.send(`
+      <html>
+        <body style="font-family:system-ui,sans-serif;padding:32px;background:#f9f9f9;">
+          <div style="max-width:600px;margin:0 auto;background:white;padding:32px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            <h2 style="color:#ff6a00;margin-top:0;">✅ AliExpress Connected!</h2>
+            <p>Your AliExpress seller account has been successfully connected.</p>
+            <p>Access token and refresh token have been saved.</p>
+            <p>You may close this window and return to your application.</p>
+          </div>
+        </body>
+      </html>
+    `);
   } catch (err: any) {
     console.error("AliExpress OAuth error:", err);
-    res
-      .status(500)
-      .send(`AliExpress OAuth failed:<br/><pre>${err.message}</pre>`);
+    res.status(500).send(`
+      <html>
+        <body style="font-family:system-ui,sans-serif;padding:32px;background:#f9f9f9;">
+          <div style="max-width:600px;margin:0 auto;background:white;padding:32px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            <h2 style="color:#e53e3e;margin-top:0;">❌ AliExpress Connection Failed</h2>
+            <p>There was a problem connecting your AliExpress account:</p>
+            <pre style="background:#f8f8f8;padding:16px;border-radius:5px;overflow-x:auto;">${err.message}</pre>
+            <p><a href="/ali/oauth/start" style="color:#3182ce;">Try Again</a></p>
+          </div>
+        </body>
+      </html>
+    `);
   }
 });
 
-/* ── 2) Manual refresh endpoint (optional) ────────────────────────── */
-router.post("/ali/oauth/refresh", async (_req, res) => {
-  try {
-    await connectDB();
-    const tok = await AliToken.findOne().exec();
-    if (!tok) throw new Error("No token stored yet");
-
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: tok.refresh_token,
-      client_id: APP_KEY, // Adding client_id
-      app_key: APP_KEY,
-      app_secret: APP_SECRET,
-    });
-
-    const json: any = await fetch(
-      "https://api.aliexpress.com/oauth/token", // ← Changed endpoint
-      {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body,
-      }
-    ).then((r) => r.json());
-
-    if (json?.error_response) {
-      const { msg } = json.error_response;
-      throw new Error(msg);
-    }
-
-    tok.access_token = json.access_token;
-    tok.refresh_token = json.refresh_token ?? tok.refresh_token;
-    tok.expires_at = new Date(Date.now() + Number(json.expires_in) * 1000);
-    await tok.save();
-
-    res.json({ ok: true, expiresAt: tok.expires_at });
-  } catch (err: any) {
-    console.error("AliExpress refresh error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ─── exports ──────────────────────────────────────────────── */
+/* ── exports ──────────────────────────────────────────────── */
 export { router as aliexpressOAuthRouter };
