@@ -4,6 +4,7 @@ import "dotenv/config";
 import { AliToken } from "../aliexpress";
 import { connectDB } from "../db";
 import crypto from "crypto";
+import * as AE from "ae-api";
 
 /* env */
 const APP_KEY = process.env.ALI_APP_KEY!;
@@ -13,6 +14,16 @@ const router = Router();
 
 /* Debug endpoint to check what values are actually being used */
 router.get("/ali/oauth/debug", (_req, res) => {
+  const client = new AE.AeClient(
+    "prod",
+    process.env.ALI_APP_KEY ?? "",
+    process.env.ALI_APP_SECRET ?? ""
+  );
+
+  console.log(
+    client.getAuthorizeUrl("https://zen-essentials.store/ali/oauth/callback")
+  );
+
   res.send(`
     <h1>AliExpress OAuth Debug</h1>
     <p>APP_KEY: ${APP_KEY}</p>
