@@ -15,7 +15,7 @@ export const app = express();
 app.use("/api/webhook", stripeWebhookRouter);
 
 // ---------- add OAuth routes ----------
-app.use(aliexpressOAuthRouter); // mounts /ali/oauth/*
+app.use("{*splat}", aliexpressOAuthRouter); // mounts /ali/oauth/*
 // ---------- end OAuth mount -------------
 
 /* ── 2️⃣  normal body parsers for the rest ── */
