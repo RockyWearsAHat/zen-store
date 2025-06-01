@@ -34,24 +34,31 @@ async function getValidAccessToken(): Promise<string> {
   // refresh if <5 min from expiry
   const fiveMin = 5 * 60 * 1000;
   if (tok.expires_at.getTime() - Date.now() < fiveMin) {
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: tok.refresh_token,
-      app_key: APP_KEY,
-      app_secret: APP_SECRET,
+    // Current refresh token endpoint from docs
+    const refreshTokenUrl =
+      "https://api.aliexpress.com/auth/token/security/refresh";
+
+    const params = new URLSearchParams();
+    params.append("client_id", APP_KEY);
+    params.append("client_secret", APP_SECRET);
+    params.append("refresh_token", tok.refresh_token);
+    params.append("grant_type", "refresh_token");
+
+    const response = await fetch(refreshTokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
     });
 
-    const resp = await fetch("https://api-seller.aliexpress.com", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    }).then((r) => r.json() as Promise<any>);
+    const data = await response.json();
 
-    if (resp.error) throw new Error("AliExpress refresh failed: " + resp.error);
+    if (data.error_msg) {
+      throw new Error(`AliExpress refresh failed: ${data.error_msg}`);
+    }
 
-    tok.access_token = resp.access_token;
-    tok.refresh_token = resp.refresh_token ?? tok.refresh_token;
-    tok.expires_at = new Date(Date.now() + resp.expires_in * 1000);
+    tok.access_token = data.access_token;
+    tok.refresh_token = data.refresh_token || tok.refresh_token;
+    tok.expires_at = new Date(Date.now() + data.expires_in * 1000);
     await tok.save();
   }
   return tok.access_token;
