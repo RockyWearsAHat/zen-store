@@ -43,9 +43,8 @@ router.post(
       })) as Stripe.PaymentIntent;
 
       // ---------- create AliExpress order immediately ----------
-      let aliOrderId = "",
-        aliTracking = "",
-        aliCost = 0;
+      let aliCost = 0;
+
       try {
         const raw = JSON.parse(intent.metadata.items ?? "[]");
         const itemsForAli = raw.map((i: any) => ({
@@ -60,8 +59,6 @@ router.post(
               ? JSON.parse(intent.metadata.shipping)
               : null
           );
-        aliOrderId = orderId;
-        aliTracking = trackingNumber;
         aliCost = orderCost;
 
         await stripe.paymentIntents.update(intent.id, {
