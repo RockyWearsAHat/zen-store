@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
-import { URLSearchParams } from "url";
+// import { URLSearchParams } from "url";
 import "dotenv/config";
 import { AliToken } from "../aliexpress";
 import { connectDB } from "../db";
 import crypto from "crypto";
-import * as AE from "ae-api";
+import { AeClient } from "ae-api"; // ← Correct import
 
 /* env */
 const APP_KEY = process.env.ALI_APP_KEY!;
@@ -14,22 +14,33 @@ const router = Router();
 
 /* Debug endpoint to check what values are actually being used */
 router.get("/ali/oauth/debug", (_req, res) => {
-  const client = new AE.AeClient(
-    "prod",
-    process.env.ALI_APP_KEY ?? "",
-    process.env.ALI_APP_SECRET ?? ""
-  );
+  try {
+    // Correct instantiation of AeClient class
+    const client = new AeClient(
+      "prod",
+      process.env.ALI_APP_KEY ?? "",
+      process.env.ALI_APP_SECRET ?? ""
+    );
 
-  console.log(
-    client.getAuthorizeUrl("https://zen-essentials.store/ali/oauth/callback")
-  );
+    const authUrl = client.getAuthorizeUrl(
+      "https://zen-essentials.store/ali/oauth/callback"
+    );
+    console.log("Auth URL from ae-api:", authUrl);
 
-  res.send(`
-    <h1>AliExpress OAuth Debug</h1>
-    <p>APP_KEY: ${APP_KEY}</p>
-    <p>APP_SECRET: ${APP_SECRET ? "[SET]" : "[NOT SET]"}</p>
-    <p><a href="/ali/oauth/start">Start OAuth Flow</a></p>
-  `);
+    res.send(`
+      <h1>AliExpress OAuth Debug</h1>
+      <p>APP_KEY: ${APP_KEY}</p>
+      <p>APP_SECRET: ${APP_SECRET ? "[SET]" : "[NOT SET]"}</p>
+      <p>Authorization URL: <a href="${authUrl}">${authUrl}</a></p>
+    `);
+  } catch (err) {
+    console.error("Error creating AeClient:", err);
+    res.status(500).send(`
+      <h1>Error Initializing AliExpress Client</h1>
+      <p>There was an error creating the AliExpress API client:</p>
+      <pre>${err instanceof Error ? err.message : String(err)}</pre>
+    `);
+  }
 });
 
 /* ── OAuth flow start ────────────────────────────────────────── */
@@ -62,55 +73,21 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
   try {
     console.log("Received code:", code);
 
-    // Use the latest AliExpress token endpoint format
-    const tokenUrl = "https://api.aliexpress.com/oauth/token";
+    // Use the AeClient for token exchange
+    const client = new AeClient("prod", APP_KEY, APP_SECRET);
 
-    const params = new URLSearchParams();
-    params.append("grant_type", "authorization_code");
-    params.append("code", code);
-    params.append("app_key", APP_KEY);
-    params.append("app_secret", APP_SECRET);
-    params.append(
-      "redirect_uri",
-      "https://zen-essentials.store/ali/oauth/callback"
-    );
-
-    console.log("Token request params:", params.toString());
-
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params,
-    });
-
-    const responseText = await response.text();
-    console.log("Token response:", responseText);
-
-    let json;
-    try {
-      json = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error(`Invalid JSON response: ${responseText}`);
-    }
-
-    if (json.error_response) {
-      throw new Error(`API Error: ${JSON.stringify(json.error_response)}`);
-    }
-
-    if (!json.access_token) {
-      throw new Error(`No access token in response: ${JSON.stringify(json)}`);
-    }
+    // Get token using the SDK
+    const tokenResponse = await client.getAcessTokenByCode(code);
+    console.log("Token response:", JSON.stringify(tokenResponse, null, 2));
 
     // Save token to database
     await connectDB();
     await AliToken.findOneAndUpdate(
       {},
       {
-        access_token: json.access_token,
-        refresh_token: json.refresh_token || "",
-        expires_at: new Date(Date.now() + json.expires_in * 1000),
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
+        expires_at: new Date(Date.now() + tokenResponse.expires_in * 1000),
       },
       { upsert: true, new: true }
     );
