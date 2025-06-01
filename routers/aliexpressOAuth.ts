@@ -40,8 +40,8 @@ router.get("/ali/oauth/callback", async (req: Request, res: Response) => {
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       need_refresh_token: "true",
-      app_key: APP_KEY, // ← Changed from client_id
-      app_secret: APP_SECRET, // ← Changed from client_secret
+      client_id: APP_KEY, // ← Changed back to client_id
+      client_secret: APP_SECRET, // ← Changed back to client_secret
       code,
       redirect_uri: "https://zen-essentials.store/ali/oauth/callback", // Recommended to include
     });
@@ -96,8 +96,8 @@ router.post("/ali/oauth/refresh", async (_req, res) => {
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: tok.refresh_token,
-      app_key: APP_KEY, // ← Changed from client_id
-      app_secret: APP_SECRET, // ← Changed from client_secret
+      client_id: APP_KEY, // ← Changed back to client_id
+      client_secret: APP_SECRET, // ← Changed back to client_secret
       // redirect_uri: "https://zen-essentials.store/ali/oauth/callback", // Not always needed for refresh
     });
 
