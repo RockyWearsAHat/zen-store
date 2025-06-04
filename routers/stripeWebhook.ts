@@ -3,7 +3,7 @@ import express from "express";
 import Stripe from "stripe";
 import "dotenv/config";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js"; // <- extension added
-import { createAliExpressOrder } from "../aliexpress"; // TS helper
+import { createAliExpressOrder } from "./aliexpress"; // updated import path
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -69,6 +69,31 @@ router.post(
           },
         });
         console.log("📦 AliExpress order placed (immediate):", orderId);
+
+        // Send success email with tracking number
+        const charge = intent.latest_charge as Stripe.Charge | undefined;
+        let paymentMethod: Stripe.PaymentMethod | null = null;
+        if (typeof intent.payment_method === "string") {
+          paymentMethod = await stripe.paymentMethods.retrieve(
+            intent.payment_method
+          );
+        } else {
+          paymentMethod = intent.payment_method as Stripe.PaymentMethod;
+        }
+        const email =
+          intent.receipt_email ||
+          charge?.billing_details?.email ||
+          paymentMethod?.billing_details?.email ||
+          null;
+        if (email) {
+          await sendSuccessEmail(
+            intent,
+            email,
+            charge,
+            paymentMethod
+            // trackingNumber is now read from intent.metadata.ali_tracking inside sendSuccessEmail
+          );
+        }
       } catch (err) {
         console.error("AliExpress order failed (immediate):", err);
       }
@@ -183,6 +208,35 @@ router.post(
           },
         });
         console.log("📦 AliExpress order placed:", orderId);
+
+        // Send success email with tracking number
+        const charges = (intent as any).charges?.data;
+        const charge = charges?.[charges.length - 1] as
+          | Stripe.Charge
+          | undefined
+          | null;
+        let paymentMethod: Stripe.PaymentMethod | null = null;
+        if (typeof intent.payment_method === "string") {
+          paymentMethod = await stripe.paymentMethods.retrieve(
+            intent.payment_method
+          );
+        } else {
+          paymentMethod = intent.payment_method as Stripe.PaymentMethod;
+        }
+        const email =
+          intent.receipt_email ||
+          charge?.billing_details?.email ||
+          paymentMethod?.billing_details?.email ||
+          null;
+        if (email) {
+          await sendSuccessEmail(
+            intent,
+            email,
+            charge,
+            paymentMethod
+            // trackingNumber is now read from intent.metadata.ali_tracking inside sendSuccessEmail
+          );
+        }
       } catch (err) {
         console.error("AliExpress order failed:", err);
       }
@@ -192,7 +246,8 @@ router.post(
         const charges = (intent as any).charges?.data;
         const charge = charges?.[charges.length - 1] as
           | Stripe.Charge
-          | undefined;
+          | undefined
+          | null;
         let paymentMethod: Stripe.PaymentMethod | null = null;
         if (typeof intent.payment_method === "string") {
           paymentMethod = await stripe.paymentMethods.retrieve(

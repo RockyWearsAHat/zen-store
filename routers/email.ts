@@ -156,7 +156,7 @@ const webUrl = (process.env.WEB_URL || "https://zen-essentials.store").replace(
 export async function sendSuccessEmail(
   intent: Stripe.PaymentIntent,
   to: string,
-  chargeParam?: Stripe.Charge,
+  chargeParam?: Stripe.Charge | null,
   paymentMethod?: Stripe.PaymentMethod | null
 ): Promise<void> {
   const {

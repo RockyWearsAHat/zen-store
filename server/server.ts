@@ -2,8 +2,8 @@ import "dotenv/config"; // ensures env vars are loaded immediately
 import express, { Request, Response, json, urlencoded } from "express";
 import { checkoutRouter } from "../routers/checkout";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
-import { aliexpressOAuthRouter } from "../routers/aliexpressOAuth";
 import serverless from "serverless-http";
+import { aliexpressRouter } from "../routers/aliexpress";
 
 // If needed, still call dotenv.config() again:
 // import dotenv from "dotenv";
@@ -14,9 +14,7 @@ export const app = express();
 // Mount webhook route first, before body parsers
 app.use("/api/webhook", stripeWebhookRouter);
 
-// ---------- add OAuth routes ----------
-app.use(aliexpressOAuthRouter); // ← add
-// ---------- end OAuth mount -------------
+app.use(aliexpressRouter);
 
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(json());
