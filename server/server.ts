@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express, { Request, Response, json, urlencoded } from "express";
+import express from "express";
 import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
@@ -38,7 +38,7 @@ const startServer = () => {
     app.use(express.static(publishedFiles));
 
     // Only serve index.html for requests that accept HTML (not for assets)
-    app.get("/{*splat}", async (req, res) => {
+    app.get("/{*splat}", async (_req, res) => {
       res.sendFile(process.cwd() + "/index.html");
       return;
     });
