@@ -11,6 +11,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), express("server/server.ts")],
   build: {
     outDir: "dist",
-    // assetsDir: "assets", // default is fine
   },
 });
