@@ -21,18 +21,27 @@ const aliTokenSchema = new mongoose.Schema({
 export const AliToken =
   mongoose.models.AliToken || mongoose.model("AliToken", aliTokenSchema);
 
-const APP_KEY = process.env.ALI_APP_KEY!;
-const APP_SECRET = process.env.ALI_APP_SECRET!;
-// Use REDIRECT_URI from environment if set, else fallback to hardcoded value
-const REDIRECT_URI = (process.env.ALI_REDIRECT_URI || "https://zen-essentials.store/ali/oauth/callback").trim();
+// Ensure APP_KEY, APP_SECRET, and REDIRECT_URI are loaded and trimmed
+const APP_KEY = (process.env.ALI_APP_KEY || "").trim();
+const APP_SECRET = (process.env.ALI_APP_SECRET || "").trim();
+const REDIRECT_URI = (
+  process.env.ALI_REDIRECT_URI ||
+  "https://zen-essentials.store/ali/oauth/callback"
+).trim();
 
 // Debug: Log the APP_KEY, APP_SECRET, and REDIRECT_URI at startup (mask secret)
-console.log("[AliExpress] Loaded APP_KEY:", APP_KEY ? `"${APP_KEY}"` : "(not set)");
+console.log(
+  "[AliExpress] Loaded APP_KEY:",
+  APP_KEY ? `"${APP_KEY}"` : "(not set)"
+);
 console.log(
   "[AliExpress] Loaded APP_SECRET:",
   APP_SECRET ? APP_SECRET.slice(0, 4) + "..." : "(not set)"
 );
-console.log("[AliExpress] Loaded REDIRECT_URI:", REDIRECT_URI ? `"${REDIRECT_URI}"` : "(not set)");
+console.log(
+  "[AliExpress] Loaded REDIRECT_URI:",
+  REDIRECT_URI ? `"${REDIRECT_URI}"` : "(not set)"
+);
 
 export const aliexpressRouter = Router();
 
@@ -78,7 +87,7 @@ aliexpressRouter.get("/health", (_req, res) => {
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
     // Check for missing or empty APP_KEY
-    if (!APP_KEY || APP_KEY.trim() === "") {
+    if (!APP_KEY) {
       res
         .status(500)
         .send(
@@ -86,7 +95,7 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
         );
       return;
     }
-    if (!REDIRECT_URI || REDIRECT_URI.trim() === "") {
+    if (!REDIRECT_URI) {
       res.status(500).send("AliExpress not configured (missing REDIRECT_URI)");
       return;
     }
@@ -98,13 +107,12 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    // AliExpress requires parameters in a specific order for the authorization URL
-    // See: https://developers.aliexpress.com/en/doc.htm?docId=117991&docType=1
-    // Order: client_id, response_type, redirect_uri, sp, state, view
+    // AliExpress requires the AppKey to be a string, not a number.
+    // Defensive: force string type for client_id
     const params = new URLSearchParams([
-      ["client_id", APP_KEY.trim()],
+      ["client_id", String(APP_KEY)],
       ["response_type", "code"],
-      ["redirect_uri", REDIRECT_URI.trim()],
+      ["redirect_uri", REDIRECT_URI],
       ["sp", "ae"],
       ["state", state],
       ["view", "web"],
@@ -142,7 +150,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   }
   try {
     // Check for missing or empty APP_KEY before making token request
-    if (!APP_KEY || APP_KEY.trim() === "") {
+    if (!APP_KEY) {
       res
         .status(500)
         .send(
@@ -150,7 +158,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
         );
       return;
     }
-    if (!REDIRECT_URI || REDIRECT_URI.trim() === "") {
+    if (!REDIRECT_URI) {
       res.status(500).send("AliExpress not configured (missing REDIRECT_URI)");
       return;
     }
@@ -159,21 +167,21 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
-    // Use the correct token endpoint and parameters as per AliExpress docs
-    // https://developers.aliexpress.com/en/doc.htm?docId=117991&docType=1
-    // Order: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
+    // Defensive: force string type for client_id and client_secret
     const tokenUrl = "https://oauth.aliexpress.com/token";
     const params = [
-      ["client_id", APP_KEY.trim()],
-      ["client_secret", APP_SECRET.trim()],
+      ["client_id", String(APP_KEY)],
+      ["client_secret", String(APP_SECRET)],
       ["grant_type", "authorization_code"],
       ["code", code],
-      ["redirect_uri", REDIRECT_URI.trim()],
+      ["redirect_uri", REDIRECT_URI],
       ["sp", "ae"],
       ["state", state || ""],
       ["view", "web"],
     ];
-    const body = params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+    const body = params
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join("&");
 
     console.log("[AliExpress] Token request body:", body);
 
