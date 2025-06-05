@@ -7,7 +7,9 @@ import { stripeWebhookRouter } from "../routers/stripeWebhook";
 // If needed, still call dotenv.config() again:
 // import dotenv from "dotenv";
 
-export const app = express();
+const app = express();
+
+export default app;
 
 const startServer = () => {
   // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
