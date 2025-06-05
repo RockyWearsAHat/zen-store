@@ -4,32 +4,27 @@ import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
 
-// If needed, still call dotenv.config() again:
-// import dotenv from "dotenv";
-
 const app = express();
 
 export default app;
 
+// 1️⃣ Mount Stripe webhook route FIRST, before any body parser
+app.use("/api/webhook", stripeWebhookRouter);
+
+/* ── 2️⃣  normal body parsers for the rest ── */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 3️⃣ Mount all other API routes
+app.use(masterRouter);
+
+// Health check endpoint for server
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok" });
+  return;
+});
+
 const startServer = () => {
-  // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
-  app.use("/api/webhook", stripeWebhookRouter);
-
-  app.use(express.static(process.cwd() + "/public"));
-
-  /* ── 2️⃣  normal body parsers for the rest ── */
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  // 3️⃣ Mount all other API routes
-  app.use(masterRouter);
-
-  // Health check endpoint for server
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
-    return;
-  });
-
   if (process.env && process.env["VITE"]) {
     // If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)
     return console.log("Running in dev mode");
@@ -40,9 +35,9 @@ const startServer = () => {
     app.use(express.static(frontendFiles));
 
     // Only serve index.html for requests that accept HTML (not for assets)
-    app.get("/{*splat}", async (_req, res) => {
+    app.get("/{*splat}", async (_, res) => {
       // if (req.accepts("html") && !req.path.match(/\.[a-zA-Z0-9]+$/)) {
-      res.sendFile("index.html", { root: "dist" });
+      res.sendFile("index.html", { root: frontendFiles });
       // return;
       // }
     });
