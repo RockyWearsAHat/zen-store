@@ -38,9 +38,11 @@ const startServer = () => {
     app.use(express.static(frontendFiles));
 
     // Only serve index.html for requests that accept HTML (not for assets)
-    app.get("/{*splat}", async (_req, res) => {
-      res.sendFile("index.html", { root: "dist" });
-      return;
+    app.get("/{*splat}", async (req, res) => {
+      if (req.accepts("html") && !req.path.match(/\.[a-zA-Z0-9]+$/)) {
+        res.sendFile("index.html", { root: "dist" });
+        return;
+      }
     });
 
     //If running on netlify, server is ran via lamda functions created by serverless-http,
