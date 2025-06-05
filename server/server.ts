@@ -39,7 +39,7 @@ const startServer = () => {
 
     // Only serve index.html for requests that accept HTML (not for assets)
     app.get("/{*splat}", async (_req, res) => {
-      res.sendFile("index.html");
+      res.sendFile("index.html", { root: publishedFiles });
       return;
     });
 
