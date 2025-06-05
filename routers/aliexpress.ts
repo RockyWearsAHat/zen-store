@@ -83,6 +83,14 @@ aliexpressRouter.get("/health", (_req, res) => {
 
 /* ────────────── AliExpress OAuth Endpoints ────────────── */
 
+// ─── OAuth endpoints (allow override for easy testing) ───────────
+const AUTH_ENDPOINT =
+  process.env.ALI_AUTH_ENDPOINT?.trim() ||
+  "https://auth.aliexpress.com/oauth2/authorize"; // ← production endpoint
+const TOKEN_ENDPOINT =
+  process.env.ALI_TOKEN_ENDPOINT?.trim() ||
+  "https://oauth.aliexpress.com/token";
+
 // Step 1: Start OAuth (use correct AliExpress OAuth URL and param names per Alibaba docs)
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
@@ -117,7 +125,8 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
       ["state", state],
       ["view", "web"],
     ]);
-    const authUrl = `https://oauth.aliexpress.com/authorize?${params.toString()}`;
+    const authUrl = `${AUTH_ENDPOINT}?${params.toString()}`;
+    console.log("[AliExpress] Auth endpoint:", AUTH_ENDPOINT);
     console.log("[AliExpress] OAuth URL:", authUrl);
     res.redirect(authUrl);
   } catch (err: any) {
@@ -168,7 +177,6 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
     // Defensive: force string type for client_id and client_secret
-    const tokenUrl = "https://oauth.aliexpress.com/token";
     const params = [
       ["client_id", String(APP_KEY)],
       ["client_secret", String(APP_SECRET)],
@@ -182,10 +190,10 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     const body = params
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
-
+    console.log("[AliExpress] Token endpoint:", TOKEN_ENDPOINT);
     console.log("[AliExpress] Token request body:", body);
 
-    const resp = await fetch(tokenUrl, {
+    const resp = await fetch(TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
