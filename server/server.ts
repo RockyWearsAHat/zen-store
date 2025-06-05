@@ -4,9 +4,7 @@ import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
 
-const app = express();
-
-export default app;
+export const app = express();
 
 // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
 app.use("/api/webhook", stripeWebhookRouter);

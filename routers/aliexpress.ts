@@ -142,9 +142,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       ["state", state || ""],
       ["view", "web"],
     ];
-    const body = params
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join("&");
+    const body = params.map(([k, v]) => `${k}=${v}`).join("&");
 
     console.log("[AliExpress] Token request body:", body);
 
@@ -226,7 +224,7 @@ function signAliParams(params: Record<string, string>, secret: string): string {
 }
 function toQueryString(params: Record<string, string>): string {
   return Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${k}=${v}`)
     .join("&");
 }
 
