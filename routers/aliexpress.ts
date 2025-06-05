@@ -4,9 +4,6 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 // --- add express-session ---
 import session from "express-session";
-// Add fetch polyfill for Node.js if needed
-// @ts-ignore
-import fetch from "node-fetch";
 
 // --- Add this block to extend session type ---
 declare module "express-session" {
