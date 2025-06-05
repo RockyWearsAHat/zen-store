@@ -25,6 +25,13 @@ const APP_KEY = process.env.ALI_APP_KEY!;
 const APP_SECRET = process.env.ALI_APP_SECRET!;
 const REDIRECT_URI = "https://zen-essentials.store/ali/oauth/callback";
 
+// Debug: Log the APP_KEY and APP_SECRET at startup (mask secret)
+console.log("[AliExpress] Loaded APP_KEY:", APP_KEY ? APP_KEY : "(not set)");
+console.log(
+  "[AliExpress] Loaded APP_SECRET:",
+  APP_SECRET ? APP_SECRET.slice(0, 4) + "..." : "(not set)"
+);
+
 export const aliexpressRouter = Router();
 
 // --- add session middleware (should be added to your main app, but for router-local use, add here) ---
@@ -68,8 +75,17 @@ aliexpressRouter.get("/health", (_req, res) => {
 // Step 1: Start OAuth (use correct AliExpress OAuth URL and param names per Alibaba docs)
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
-    if (!APP_KEY || !REDIRECT_URI) {
-      res.status(500).send("AliExpress not configured (missing env vars)");
+    // Check for missing or empty APP_KEY
+    if (!APP_KEY || APP_KEY.trim() === "") {
+      res
+        .status(500)
+        .send(
+          "AliExpress not configured: APP_KEY missing or empty. Please set ALI_APP_KEY in your environment."
+        );
+      return;
+    }
+    if (!REDIRECT_URI) {
+      res.status(500).send("AliExpress not configured (missing REDIRECT_URI)");
       return;
     }
     // Generate a random state and store in session for CSRF protection
@@ -123,6 +139,15 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     return;
   }
   try {
+    // Check for missing or empty APP_KEY before making token request
+    if (!APP_KEY || APP_KEY.trim() === "") {
+      res
+        .status(500)
+        .send(
+          "AliExpress not configured: APP_KEY missing or empty. Please set ALI_APP_KEY in your environment."
+        );
+      return;
+    }
     // Log for debugging
     console.log("[AliExpress] Received code:", code);
     console.log("[AliExpress] Using APP_KEY:", APP_KEY);
