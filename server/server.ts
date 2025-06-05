@@ -34,12 +34,12 @@ const startServer = () => {
     // DO NOT mount express.static or catch-all route in dev mode!
   } else {
     // Serve static files from dist (not public) in production
-    const publishedFiles = process.cwd() + "/dist/";
-    app.use(express.static(publishedFiles));
+    const frontendFiles = process.cwd() + "/dist/";
+    app.use(express.static(frontendFiles));
 
     // Only serve index.html for requests that accept HTML (not for assets)
     app.get("/{*splat}", async (_req, res) => {
-      res.sendFile("index.html", { root: publishedFiles });
+      res.sendFile("index.html", { root: "dist" });
       return;
     });
 
