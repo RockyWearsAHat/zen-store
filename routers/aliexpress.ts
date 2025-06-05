@@ -86,7 +86,7 @@ aliexpressRouter.get("/health", (_req, res) => {
 // ─── OAuth endpoints (allow override for easy testing) ───────────
 const AUTH_ENDPOINT =
   process.env.ALI_AUTH_ENDPOINT?.trim() ||
-  "https://auth.aliexpress.com/oauth2/authorize"; // ← production endpoint
+  "https://oauth.aliexpress.com/authorize"; // 🔄 use up-to-date endpoint
 const TOKEN_ENDPOINT =
   process.env.ALI_TOKEN_ENDPOINT?.trim() ||
   "https://oauth.aliexpress.com/token";
@@ -115,17 +115,16 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    // AliExpress requires the AppKey to be a string, not a number.
-    // Defensive: force string type for client_id
-    const params = new URLSearchParams([
-      ["client_id", String(APP_KEY)],
-      ["response_type", "code"],
-      ["redirect_uri", REDIRECT_URI],
-      ["sp", "ae"],
-      ["state", state],
-      ["view", "web"],
+    // Step 1 ── build the authorisation URL with the *documented* order
+    const authParams = new URLSearchParams([
+      ["response_type", "code"], // 1
+      ["client_id", String(APP_KEY)], // 2
+      ["redirect_uri", REDIRECT_URI], // 3
+      ["state", state], // 4
+      ["view", "web"], // 5
+      ["sp", "ae"], // 6
     ]);
-    const authUrl = `${AUTH_ENDPOINT}?${params.toString()}`;
+    const authUrl = `${AUTH_ENDPOINT}?${authParams.toString()}`;
     console.log("[AliExpress] Auth endpoint:", AUTH_ENDPOINT);
     console.log("[AliExpress] OAuth URL:", authUrl);
     res.redirect(authUrl);
@@ -176,18 +175,18 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
-    // Defensive: force string type for client_id and client_secret
-    const params = [
-      ["client_id", String(APP_KEY)],
-      ["client_secret", String(APP_SECRET)],
-      ["grant_type", "authorization_code"],
-      ["code", code],
-      ["redirect_uri", REDIRECT_URI],
-      ["sp", "ae"],
-      ["state", state || ""],
-      ["view", "web"],
+    // Step 2 ── token exchange body in the *documented* order
+    const tokenPairs: [string, string][] = [
+      ["code", code], // 1
+      ["grant_type", "authorization_code"], // 2
+      ["client_id", String(APP_KEY)], // 3
+      ["client_secret", String(APP_SECRET)], //4
+      ["sp", "ae"], // 5
+      ["redirect_uri", REDIRECT_URI], // 6
+      ["state", state || ""], // 7
+      ["view", "web"], // 8
     ];
-    const body = params
+    const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
     console.log("[AliExpress] Token endpoint:", TOKEN_ENDPOINT);
