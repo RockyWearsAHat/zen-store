@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
-import "dotenv/config";
 // import path from "path";
 
 /* ─── SMTP transport───────────────────────────────────────── */

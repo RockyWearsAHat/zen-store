@@ -1,17 +1,16 @@
 import { Router, Request, Response } from "express";
 import express from "express";
 import Stripe from "stripe";
-import "dotenv/config";
-import { sendSuccessEmail, sendFailureEmail } from "./email.js"; // <- extension added
-import { createAliExpressOrder } from "./aliexpress"; // updated import path
+import { sendSuccessEmail, sendFailureEmail } from "./email.js";
+import { createAliExpressOrder } from "./aliexpress";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// raw body required for webhook sig verification
+// Only apply express.raw() to the webhook route
 router.post(
   "/",
-  express.raw({ type: "application/json" }), // ← swap in‑house parser
+  express.raw({ type: "application/json" }),
   async (req: Request, res: Response): Promise<void> => {
     const sig = req.headers["stripe-signature"] as string;
     let event: Stripe.Event;
@@ -26,12 +25,6 @@ router.post(
       console.error("Webhook signature verification failed.", err.message);
       res.status(400).send(`Webhook Error: ${err.message}`);
       return;
-    }
-
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-      console.log("✅  Payment received for session", session.id);
-      // TODO: handle order fulfillment
     }
 
     if (event.type === "payment_intent.succeeded") {

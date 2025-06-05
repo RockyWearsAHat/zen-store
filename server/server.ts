@@ -1,51 +1,64 @@
-import "dotenv/config"; // ensures env vars are loaded immediately
+import "dotenv/config";
 import express, { Request, Response, json, urlencoded } from "express";
-import { checkoutRouter } from "../routers/checkout";
-import { stripeWebhookRouter } from "../routers/stripeWebhook";
 import serverless from "serverless-http";
-import { aliexpressRouter } from "../routers/aliexpress";
+import { router as masterRouter } from "./masterRouter";
+import { stripeWebhookRouter } from "../routers/stripeWebhook";
 
 // If needed, still call dotenv.config() again:
 // import dotenv from "dotenv";
-// dotenv.config();
 
 export const app = express();
 
-// Mount webhook route first, before body parsers
-app.use("/api/webhook", stripeWebhookRouter);
+const startServer = () => {
+  // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
+  app.use("/api/webhook", stripeWebhookRouter);
 
-app.use(aliexpressRouter);
+  app.use(express.static(process.cwd() + "/public"));
 
-/* ── 2️⃣  normal body parsers for the rest ── */
-app.use(json());
-app.use(urlencoded({ extended: true }));
+  /* ── 2️⃣  normal body parsers for the rest ── */
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-// Mount the rest of the API routes
-app.use("/api", checkoutRouter);
+  // 3️⃣ Mount all other API routes
+  app.use(masterRouter);
 
-if (process.env !== undefined && process.env["VITE"]) {
-  //If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)
-  console.log("Running in dev mode");
-} else {
-  if (!process.env["VITE"]) {
-    const frontendFiles = process.cwd() + "/dist/";
-    app.use(express.static(frontendFiles));
+  // Health check endpoint for server
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok" });
+    return;
+  });
 
-    app.get("/{*splat}", (_: Request, res: Response) => {
-      res.sendFile("index.html", { root: frontendFiles });
+  if (process.env && process.env["VITE"]) {
+    // If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)
+    return console.log("Running in dev mode");
+    // DO NOT mount express.static or catch-all route in dev mode!
+  } else {
+    // Serve static files from dist (not public) in production
+    const publishedFiles = process.cwd() + "/dist/";
+    app.use(express.static(publishedFiles));
+
+    // Only serve index.html for requests that accept HTML (not for assets)
+    app.get("/{*splat}", async (req, res) => {
+      res.sendFile(process.cwd() + "/index.html");
+      return;
     });
 
     //If running on netlify, server is ran via lamda functions created by serverless-http,
     //so if not, start the server, stupid nested if because return can't happen here bc I'm dumb
     //and I don't want to use a function
-    if (!process.env.NETLIFY) {
-      app.listen(process.env.PORT || 4000, () => {
-        console.log(
-          !process.env["PORT"] ? "Server started on http://localhost:4000" : ""
-        );
-      });
-    }
+
+    if (process.env["NETLIFY"]) return;
+
+    app.listen(process.env.PORT || 4000, () => {
+      console.log(
+        !process.env["PORT"]
+          ? "Server started on http://localhost:4000"
+          : `Server started on http://localhost:${process.env["PORT"]}`
+      );
+    });
   }
-}
+};
+
+startServer();
 
 export const handler = serverless(app);
