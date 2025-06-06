@@ -1,4 +1,5 @@
 import { Request, Response, Router } from "express";
+import { connectDB } from "../server/db"; // Ensure connectDB is imported
 import crypto from "crypto";
 import mongoose from "mongoose";
 // --- add express-session ---
@@ -357,8 +358,9 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       expiresInSeconds = 3600;
     }
 
-    if (!process.env.MONGO_URI) return;
-    mongoose.connect(process.env.MONGO_URI);
+    // Ensure database is connected before writing tokens
+    await connectDB();
+
     await AliToken.findOneAndUpdate(
       {},
       {
@@ -461,8 +463,10 @@ function toQueryString(params: Record<string, string>): string {
 // Helper: get valid access token (refresh if needed)
 async function getAliAccessToken(): Promise<string> {
   try {
-    if (!process.env.MONGO_URI) return Promise.reject("MONGO_URI not set");
-    mongoose.connect(process.env.MONGO_URI);
+    // Ensure database is connected before accessing tokens
+    await connectDB();
+    // Removed direct mongoose.connect and MONGO_URI check here, connectDB should handle it.
+
     let token = await AliToken.findOne().exec();
     if (!token || !token.access_token)
       throw new Error("AliExpress not connected or token missing"); // Added check for token.access_token
