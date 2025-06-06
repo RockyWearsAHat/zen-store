@@ -348,7 +348,9 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       );
     }
 
-    if (!data.access_token) {
+    // Check for errors in the parsed gopResponseBody (data)
+    // Error if data.code is present and not "0", OR if access_token is missing.
+    if ((data.code && data.code !== "0") || !data.access_token) {
       console.error(
         "[AliExpress] Token error payload (parsed gopResponseBody):",
         data
@@ -360,7 +362,12 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
           <body>
             <h1>❌ AliExpress OAuth Error</h1>
             <pre>${JSON.stringify(data, null, 2)}</pre>
-            <p>${data.error_description || "No access_token returned"}</p>
+            <p>${
+              data.error_description ||
+              data.sub_msg ||
+              data.msg ||
+              "Error in token response or no access_token returned"
+            }</p>
           </body>
         </html>
       `);
@@ -598,17 +605,22 @@ async function getAliAccessToken(): Promise<string> {
         );
       }
 
-      if (!refreshData.access_token) {
+      // Check for errors in the parsed gopResponseBody (refreshData)
+      // Error if refreshData.code is present and not "0", OR if access_token is missing.
+      if (
+        (refreshData.code && refreshData.code !== "0") ||
+        !refreshData.access_token
+      ) {
         console.error(
           "[AliExpress] Refresh token error payload (parsed gopResponseBody):",
           refreshData
         );
         // Log the specific error from AliExpress if available
         const specificError =
-          refreshData.msg ||
-          refreshData.sub_msg ||
           refreshData.error_description ||
-          "No access_token in refresh response";
+          refreshData.sub_msg ||
+          refreshData.msg ||
+          "No access_token in refresh response or error code present";
         await AliToken.deleteOne({ _id: token._id });
         throw new Error(specificError);
       }
