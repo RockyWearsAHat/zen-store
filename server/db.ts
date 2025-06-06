@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config();
 
 // Variable to cache the Mongoose connection
 let cachedConnection: typeof mongoose | null = null;
@@ -9,15 +11,15 @@ export async function connectDB() {
     return cachedConnection;
   }
 
-  if (!process.env.MONGO_URI) {
+  if (!process.env.MONGODB_URI) {
     throw new Error(
-      "[MongoDB] Please define the MONGO_URI environment variable inside .env.local or your server environment"
+      "[MongoDB] Please define the MONGODB_URI environment variable (currently undefined)"
     );
   }
 
   try {
     // console.log("[MongoDB] Attempting to connect to database...");
-    cachedConnection = await mongoose.connect(process.env.MONGO_URI, {
+    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, {
       // Options to avoid deprecation warnings, adjust as needed for your Mongoose version
       // useNewUrlParser: true, // Deprecated in Mongoose 6+
       // useUnifiedTopology: true, // Deprecated in Mongoose 6+
