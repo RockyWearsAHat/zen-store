@@ -130,18 +130,20 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
         `"${state}"`
       );
 
-      // Minimal required params + state, as per AliExpress docs.
-      // Temporarily omitting 'sp' and 'view' to simplify the request.
+      // Parameters in the order specified by AliExpress documentation:
+      // client_id, response_type, redirect_uri, sp, state, view
       const authParams = new URLSearchParams([
         ["client_id", APP_KEY],
         ["response_type", "code"],
         ["redirect_uri", REDIRECT_URI],
+        ["sp", "ae"], // Re-added
         ["state", state],
+        ["view", "web"], // Re-added
       ]);
 
       const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
       console.log(
-        "[AliExpress] Attempting OAuth URL (minimal params):",
+        "[AliExpress] Attempting OAuth URL (with sp & view):",
         authUrl
       );
       res.redirect(authUrl);
