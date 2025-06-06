@@ -237,40 +237,40 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     );
 
     const timestamp = Date.now().toString();
-    const signMethod = "sha256";
+    const signMethod = "sha256"; // This is the value for the sign_method parameter
 
-    // Parameters for signing: app_key, code, redirect_uri, timestamp
-    // Exclude client_secret and sign_method from the string to be signed.
-    // client_secret is used as the key for signing.
-    // sign_method declares the method but is not part of the signed content.
-    const paramsToSign: Record<string, string> = {
+    // Parameters that will be sent in the request body (and thus need to be signed, except 'sign' itself)
+    // According to new signature docs: "Sort all request parameters (including system and application parameters,
+    // but except the “sign” and parameters with byte array type...)"
+    // This means client_secret and sign_method, if sent as parameters, should be included.
+    const paramsForSignatureAndBody: Record<string, string> = {
       app_key: APP_KEY,
+      client_secret: APP_SECRET, // Required parameter for /auth/token/create action
       code: code!,
       redirect_uri: REDIRECT_URI,
       timestamp: timestamp,
-      // No client_secret here for signing
-      // No sign_method here for signing
+      sign_method: signMethod, // This parameter itself is part of the signature base
     };
 
-    const sign = signAliParams(paramsToSign, APP_SECRET);
+    const apiPath = "/auth/token/create"; // API path for this action
+    const sign = signAliExpressRequest(
+      apiPath,
+      paramsForSignatureAndBody,
+      APP_SECRET
+    );
 
     // All parameters to be sent in the body
-    // client_secret is included here as the /auth/token/create action requires it.
     const tokenPairs: [string, string][] = [
-      ["app_key", APP_KEY],
-      ["client_secret", APP_SECRET],
-      ["code", code!],
-      ["redirect_uri", REDIRECT_URI],
-      ["timestamp", timestamp],
-      ["sign_method", signMethod],
+      ...Object.entries(paramsForSignatureAndBody),
       ["sign", sign],
     ];
+
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
 
     console.log(
-      "[AliExpress] Token request body (for /auth/token/create):",
+      `[AliExpress] Token request to ${TOKEN_ENDPOINT} with body:`,
       body
     );
 
@@ -435,15 +435,57 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
 
 /* ────────────── AliExpress Dropshipping API Helpers ────────────── */
 
-// Helper: sign AliExpress API params (sha256, per docs)
-function signAliParams(params: Record<string, string>, secret: string): string {
-  const sorted = Object.keys(params)
-    .sort()
-    .map((k) => k + params[k])
-    .join("");
-  const base = secret + sorted + secret;
-  return crypto.createHash("sha256").update(base).digest("hex").toUpperCase();
+// Helper: sign AliExpress API request (HMAC_SHA256, per new docs)
+function signAliExpressRequest(
+  apiPath: string, // e.g., /auth/token/create
+  params: Record<string, string>, // All request params except 'sign'
+  appSecret: string
+): string {
+  const sortedKeys = Object.keys(params).sort();
+
+  let queryString = "";
+  for (const key of sortedKeys) {
+    // Ensure that only non-empty values are part of the query string,
+    // as per the Java example's `areNotEmpty(key, value)` check,
+    // though the primary rule is "all request parameters".
+    // For simplicity and to match the "concatenate sorted parameters and their values" rule,
+    // we'll include all provided params. If a param has an empty string value, it would be `key` followed by nothing.
+    // The example `bar=2, foo=1, foo_bar=3, foobar=` implies `foobar` had an empty value.
+    // Let's assume params will not have undefined/null values here.
+    queryString += key + params[key];
+  }
+
+  // Prepend the API path for System Interfaces
+  const stringToSign = apiPath + queryString;
+
+  // console.log("[AliExpress Signature] String to sign:", stringToSign); // For debugging
+
+  const hmac = crypto.createHmac("sha256", appSecret);
+  hmac.update(stringToSign, "utf8");
+  return hmac.digest("hex").toUpperCase();
 }
+
+// Helper: sign AliExpress API request parameters (for /sync endpoint, general interface)
+function signAliParams(
+  params: Record<string, string>, // All request params except 'sign'
+  appSecret: string
+): string {
+  const sortedKeys = Object.keys(params).sort();
+
+  let stringToSign = "";
+  for (const key of sortedKeys) {
+    // Concatenate key and its value.
+    // Assumes params[key] is always a string and defined.
+    stringToSign += key + params[key];
+  }
+
+  // console.log("[AliExpress Signature - General] String to sign:", stringToSign); // For debugging
+
+  const hmac = crypto.createHmac("sha256", appSecret); // Using sha256 as per sign_method
+  hmac.update(stringToSign, "utf8");
+  return hmac.digest("hex").toUpperCase();
+}
+
 function toQueryString(params: Record<string, string>): string {
   return Object.entries(params)
     .map(([k, v]) => `${k}=${v}`)
@@ -473,26 +515,32 @@ async function getAliAccessToken(): Promise<string> {
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
 
-      // Parameters for signing refresh request
-      // Exclude client_secret and sign_method from the string to be signed.
-      const refreshParamsToSign: Record<string, string> = {
+      // Parameters for signing and sending in the refresh request body
+      const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
+        client_secret: APP_SECRET, // Required parameter for /auth/token/refresh action
         refresh_token: token.refresh_token,
         timestamp: timestamp,
-        // No client_secret here for signing
-        // No sign_method here for signing
+        sign_method: signMethod,
       };
 
-      const sign = signAliParams(refreshParamsToSign, APP_SECRET);
+      const apiPath = "/auth/token/refresh"; // API path for this action
+      const sign = signAliExpressRequest(
+        apiPath,
+        paramsForSignatureAndBody,
+        APP_SECRET
+      );
 
       const refreshBodyParams = new URLSearchParams();
-      refreshBodyParams.append("app_key", APP_KEY);
-      // client_secret is included here as the /auth/token/refresh action requires it.
-      refreshBodyParams.append("client_secret", APP_SECRET);
-      refreshBodyParams.append("refresh_token", token.refresh_token);
-      refreshBodyParams.append("timestamp", timestamp);
-      refreshBodyParams.append("sign_method", signMethod);
+      for (const key in paramsForSignatureAndBody) {
+        refreshBodyParams.append(key, paramsForSignatureAndBody[key]);
+      }
       refreshBodyParams.append("sign", sign);
+
+      console.log(
+        `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
+        refreshBodyParams.toString()
+      );
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         method: "POST",
