@@ -239,26 +239,26 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     const timestamp = Date.now().toString();
     const signMethod = "sha256";
 
-    // Parameters for signing (all except the sign itself)
+    // Parameters for signing: app_key, code, redirect_uri, timestamp
+    // Exclude client_secret and sign_method from the string to be signed.
+    // client_secret is used as the key for signing.
+    // sign_method declares the method but is not part of the signed content.
     const paramsToSign: Record<string, string> = {
       app_key: APP_KEY,
-      client_secret: APP_SECRET, // client_secret is part of the signing base string, not always a top-level param if signing is used.
-      // However, AliExpress APIs can be inconsistent. Let's include it in params to sign for now.
-      // If it causes "Invalid sign", we might need to remove it from here but keep it for signAliParams's secret part.
-      // The doc for /auth/token/create lists client_secret as a parameter.
       code: code!,
       redirect_uri: REDIRECT_URI,
       timestamp: timestamp,
-      sign_method: signMethod,
-      // Note: The API action itself (e.g., /auth/token/create) is part of the URL, not a parameter here.
+      // No client_secret here for signing
+      // No sign_method here for signing
     };
 
     const sign = signAliParams(paramsToSign, APP_SECRET);
 
     // All parameters to be sent in the body
+    // client_secret is included here as the /auth/token/create action requires it.
     const tokenPairs: [string, string][] = [
       ["app_key", APP_KEY],
-      ["client_secret", APP_SECRET], // Sending as per /auth/token/create doc
+      ["client_secret", APP_SECRET],
       ["code", code!],
       ["redirect_uri", REDIRECT_URI],
       ["timestamp", timestamp],
@@ -474,20 +474,21 @@ async function getAliAccessToken(): Promise<string> {
       const signMethod = "sha256";
 
       // Parameters for signing refresh request
+      // Exclude client_secret and sign_method from the string to be signed.
       const refreshParamsToSign: Record<string, string> = {
         app_key: APP_KEY,
-        client_secret: APP_SECRET, // Assuming client_secret is also needed for signing refresh requests
         refresh_token: token.refresh_token,
         timestamp: timestamp,
-        sign_method: signMethod,
-        // Note: The API action itself (e.g., /auth/token/refresh) is part of the URL.
+        // No client_secret here for signing
+        // No sign_method here for signing
       };
 
       const sign = signAliParams(refreshParamsToSign, APP_SECRET);
 
       const refreshBodyParams = new URLSearchParams();
       refreshBodyParams.append("app_key", APP_KEY);
-      refreshBodyParams.append("client_secret", APP_SECRET); // Sending as it's part of signed params
+      // client_secret is included here as the /auth/token/refresh action requires it.
+      refreshBodyParams.append("client_secret", APP_SECRET);
       refreshBodyParams.append("refresh_token", token.refresh_token);
       refreshBodyParams.append("timestamp", timestamp);
       refreshBodyParams.append("sign_method", signMethod);
