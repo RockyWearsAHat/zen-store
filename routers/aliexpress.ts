@@ -236,13 +236,34 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       REDIRECT_URI
     );
 
-    // Parameters for https://api-sg.aliexpress.com/rest/auth/token/create
-    // Error message indicates "app_key" is mandatory.
+    const timestamp = Date.now().toString();
+    const signMethod = "sha256";
+
+    // Parameters for signing (all except the sign itself)
+    const paramsToSign: Record<string, string> = {
+      app_key: APP_KEY,
+      client_secret: APP_SECRET, // client_secret is part of the signing base string, not always a top-level param if signing is used.
+      // However, AliExpress APIs can be inconsistent. Let's include it in params to sign for now.
+      // If it causes "Invalid sign", we might need to remove it from here but keep it for signAliParams's secret part.
+      // The doc for /auth/token/create lists client_secret as a parameter.
+      code: code!,
+      redirect_uri: REDIRECT_URI,
+      timestamp: timestamp,
+      sign_method: signMethod,
+      // Note: The API action itself (e.g., /auth/token/create) is part of the URL, not a parameter here.
+    };
+
+    const sign = signAliParams(paramsToSign, APP_SECRET);
+
+    // All parameters to be sent in the body
     const tokenPairs: [string, string][] = [
-      ["app_key", APP_KEY], // Changed from client_id to app_key
-      ["client_secret", APP_SECRET],
+      ["app_key", APP_KEY],
+      ["client_secret", APP_SECRET], // Sending as per /auth/token/create doc
       ["code", code!],
-      ["redirect_uri", REDIRECT_URI], // Optional but good practice
+      ["redirect_uri", REDIRECT_URI],
+      ["timestamp", timestamp],
+      ["sign_method", signMethod],
+      ["sign", sign],
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
@@ -449,18 +470,33 @@ async function getAliAccessToken(): Promise<string> {
         "[AliExpress] Access token expired or expiring soon, attempting refresh."
       );
 
-      const refreshParams = new URLSearchParams();
-      // Parameters for /auth/token/refresh. Assuming it also expects app_key.
-      refreshParams.append("app_key", APP_KEY); // Changed from client_id
-      refreshParams.append("client_secret", APP_SECRET);
-      refreshParams.append("refresh_token", token.refresh_token);
-      // According to docId=1590, /auth/token/refresh does not need redirect_uri or other grant_types.
+      const timestamp = Date.now().toString();
+      const signMethod = "sha256";
+
+      // Parameters for signing refresh request
+      const refreshParamsToSign: Record<string, string> = {
+        app_key: APP_KEY,
+        client_secret: APP_SECRET, // Assuming client_secret is also needed for signing refresh requests
+        refresh_token: token.refresh_token,
+        timestamp: timestamp,
+        sign_method: signMethod,
+        // Note: The API action itself (e.g., /auth/token/refresh) is part of the URL.
+      };
+
+      const sign = signAliParams(refreshParamsToSign, APP_SECRET);
+
+      const refreshBodyParams = new URLSearchParams();
+      refreshBodyParams.append("app_key", APP_KEY);
+      refreshBodyParams.append("client_secret", APP_SECRET); // Sending as it's part of signed params
+      refreshBodyParams.append("refresh_token", token.refresh_token);
+      refreshBodyParams.append("timestamp", timestamp);
+      refreshBodyParams.append("sign_method", signMethod);
+      refreshBodyParams.append("sign", sign);
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
-        // Using new REFRESH_TOKEN_ENDPOINT
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: refreshParams.toString(), // Use toString() for URLSearchParams
+        body: refreshBodyParams.toString(),
       });
 
       const refreshResponseText = await refreshResp.text();
