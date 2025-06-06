@@ -116,13 +116,14 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Generated state:", state);
 
     // Step 1 ── build the authorisation URL with the *documented* order
+    // Doc-ordered parameters: client_id, response_type, redirect_uri, sp, state, view
     const authParams = new URLSearchParams([
-      ["response_type", "code"], // 1
-      ["client_id", String(APP_KEY)], // 2
+      ["client_id", String(APP_KEY)], // 1
+      ["response_type", "code"], // 2
       ["redirect_uri", REDIRECT_URI], // 3
-      ["state", state], // 4
-      ["view", "web"], // 5
-      ["sp", "ae"], // 6
+      ["sp", "ae"], // 4  ← was missing / misplaced
+      ["state", state], // 5
+      ["view", "web"], // 6
     ]);
     const authUrl = `${AUTH_ENDPOINT}?${authParams.toString()}`;
     console.log("[AliExpress] Auth endpoint:", AUTH_ENDPOINT);
@@ -176,13 +177,14 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
     // Step 2 ── token exchange body in the *documented* order
+    // Doc-ordered token body: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
     const tokenPairs: [string, string][] = [
-      ["code", code], // 1
-      ["grant_type", "authorization_code"], // 2
-      ["client_id", String(APP_KEY)], // 3
-      ["client_secret", String(APP_SECRET)], //4
-      ["sp", "ae"], // 5
-      ["redirect_uri", REDIRECT_URI], // 6
+      ["client_id", String(APP_KEY)], // 1
+      ["client_secret", String(APP_SECRET)], // 2
+      ["grant_type", "authorization_code"], // 3
+      ["code", code], // 4
+      ["redirect_uri", REDIRECT_URI], // 5
+      ["sp", "ae"], // 6
       ["state", state || ""], // 7
       ["view", "web"], // 8
     ];
