@@ -107,25 +107,45 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     // Generate a random state and store in session for CSRF protection
     const state = crypto.randomBytes(8).toString("hex");
     req.session.ali_oauth_state = state;
-    req.session.save(); // ensure session is saved
-    // Log for debugging
-    console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
-    console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
-    console.log("[AliExpress] Generated state:", state);
 
-    // Doc-ordered params: client_id, response_type, redirect_uri, sp, state, view
-    const authParams = new URLSearchParams([
-      ["client_id", APP_KEY], // 1
-      ["response_type", "code"], // 2
-      ["redirect_uri", REDIRECT_URI], // 3
-      ["sp", "ae"], // 4
-      ["state", state], // 5
-      ["view", "web"], // 6
-    ]);
+    // Ensure session is saved before redirecting, especially for async stores
+    req.session.save((err) => {
+      if (err) {
+        console.error("[AliExpress] Session save error before redirect:", err);
+        res.status(500).send("Failed to save session before OAuth redirect.");
+        return;
+      }
 
-    const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
-    console.log("[AliExpress] OAuth URL:", authUrl);
-    res.redirect(authUrl);
+      // Log for debugging - these are the critical values for the auth URL
+      console.log(
+        "[AliExpress] Constructing Auth URL with APP_KEY:",
+        `"${APP_KEY}"`
+      );
+      console.log(
+        "[AliExpress] Constructing Auth URL with REDIRECT_URI:",
+        `"${REDIRECT_URI}"`
+      );
+      console.log(
+        "[AliExpress] Constructing Auth URL with state:",
+        `"${state}"`
+      );
+
+      // Minimal required params + state, as per AliExpress docs.
+      // Temporarily omitting 'sp' and 'view' to simplify the request.
+      const authParams = new URLSearchParams([
+        ["client_id", APP_KEY],
+        ["response_type", "code"],
+        ["redirect_uri", REDIRECT_URI],
+        ["state", state],
+      ]);
+
+      const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
+      console.log(
+        "[AliExpress] Attempting OAuth URL (minimal params):",
+        authUrl
+      );
+      res.redirect(authUrl);
+    });
   } catch (err: any) {
     console.error("OAuth start error:", err);
     res
@@ -138,8 +158,6 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
 aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
   const state = req.query.state as string | undefined;
-
-  console.log(req);
 
   // Check state for CSRF protection
   if (!req.session || !req.session.ali_oauth_state) {
@@ -160,24 +178,25 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   }
   try {
     console.log("[AliExpress] Received code:", code);
-    console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
-    console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
+    console.log("[AliExpress] Using APP_KEY:", APP_KEY);
+    console.log("[AliExpress] Using REDIRECT_URI:", REDIRECT_URI);
 
-    // ----- build token body in the order AliExpress expects -----
+    // Doc-ordered body for token exchange: grant_type, code, client_id, client_secret, redirect_uri, sp, view, state
     const tokenPairs: [string, string][] = [
-      ["code", code], // 1
-      ["grant_type", "authorization_code"], // 2
+      ["grant_type", "authorization_code"], // 1
+      ["code", code], // 2
       ["client_id", APP_KEY], // 3
       ["client_secret", APP_SECRET], // 4
-      ["sp", "ae"], // 5
-      ["redirect_uri", REDIRECT_URI], // 6
-      ["state", state || ""], // 7 (optional)
-      ["view", "web"], // 8 (optional)
+      ["redirect_uri", REDIRECT_URI], // 5
+      ["sp", "ae"], // 6
+      ["view", "web"], // 7 (Optional, but good to include if used in auth)
+      ["state", state || ""], // 8 (Optional, but good to include if used in auth)
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
-    console.log("[AliExpress] Token body:", body);
+
+    console.log("[AliExpress] Token request body:", body);
 
     const resp = await fetch(TOKEN_ENDPOINT, {
       method: "POST",
@@ -217,8 +236,9 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
-        // expires_at: new Date(Date.now() + data.expires_in * 1000), // Not reliable, see docs
-        expires_at: new Date(Date.now() + (data.expires_in || 0) * 1000),
+        expires_at: new Date(
+          Date.now() + (parseInt(data.expires_in, 10) || 0) * 1000
+        ), // Ensure expires_in is treated as number
       },
       { upsert: true, new: true }
     );
@@ -229,7 +249,10 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
         <body>
           <h1>✅ AliExpress Connected</h1>
           <p>Your AliExpress account has been successfully connected.</p>
-          <p><b>Note:</b> Refresh tokens currently do not work as per <a href="https://developers.aliexpress.com/en/doc.htm?docId=117991&docType=1" target="_blank">AliExpress documentation</a>. If your access token expires, you must re-authorize.</p>
+          <p><b>Access Token:</b> ${data.access_token}</p> 
+          <p><b>Refresh Token:</b> ${data.refresh_token || "N/A"}</p>
+          <p><b>Expires In:</b> ${data.expires_in} seconds</p>
+          <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
         </body>
       </html>
     `);
