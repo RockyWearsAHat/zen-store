@@ -281,91 +281,46 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     });
 
     const responseText = await resp.text();
-    let outerData: any;
+    let responseData: any; // Changed from outerData
 
     try {
-      outerData = JSON.parse(responseText);
+      responseData = JSON.parse(responseText);
     } catch (e) {
       console.error(
         "[AliExpress] Raw token response (not JSON):",
         responseText
       );
-      throw new Error(
-        "AliExpress token response not valid JSON: " + responseText
-      );
-    }
-
-    // Handle GOP-wrapped response
-    if (
-      outerData.type === "ISV" || // Check for ISV error type as well
-      outerData.success !== true ||
-      (outerData.gopErrorCode !== "0" &&
-        outerData.gopErrorCode !== undefined) || // Allow gopErrorCode to be missing if success is true
-      !outerData.gopResponseBody
-    ) {
-      // Check if the error is specifically the one from the prompt
-      if (
-        outerData.code === "MissingParameter" &&
-        outerData.message &&
-        outerData.message.includes("app_key")
-      ) {
-        console.error(
-          "[AliExpress] Token error: Missing 'app_key' parameter, even though it was sent. Check API endpoint or parameter naming.",
-          outerData
-        );
-      } else {
-        console.error(
-          "[AliExpress] Token error payload (outer GOP wrapper):",
-          outerData
-        );
-      }
-      res.status(500).send(`
-        <html>
-          <head><title>AliExpress OAuth Error</title></head>
-          <body>
-            <h1>❌ AliExpress OAuth Error (GOP)</h1>
-            <pre>${JSON.stringify(outerData, null, 2)}</pre>
-            <p>${
-              outerData.sub_msg || outerData.msg || "Error in GOP response"
-            }</p>
-          </body>
-        </html>
-      `);
-      return;
-    }
-
-    let data: any;
-    try {
-      data = JSON.parse(outerData.gopResponseBody);
-    } catch (e) {
-      console.error(
-        "[AliExpress] Raw gopResponseBody (not JSON):",
-        outerData.gopResponseBody
-      );
-      throw new Error(
-        "AliExpress gopResponseBody not valid JSON: " +
-          outerData.gopResponseBody
-      );
-    }
-
-    // Check for errors in the parsed gopResponseBody (data)
-    // Error if data.code is present and not "0", OR if access_token is missing.
-    if ((data.code && data.code !== "0") || !data.access_token) {
-      console.error(
-        "[AliExpress] Token error payload (parsed gopResponseBody):",
-        data
-      );
-      // Show error to user for debugging
       res.status(500).send(`
         <html>
           <head><title>AliExpress OAuth Error</title></head>
           <body>
             <h1>❌ AliExpress OAuth Error</h1>
-            <pre>${JSON.stringify(data, null, 2)}</pre>
+            <p>Received non-JSON response from token endpoint.</p>
+            <pre>${responseText}</pre>
+          </body>
+        </html>`);
+      return;
+    }
+
+    // Assuming token endpoints return direct JSON, not GOP-wrapped.
+    // Check for errors directly in responseData.
+    // Error if responseData.code is present and not "0", OR if access_token is missing.
+    if ((responseData.code && responseData.code !== "0") || !responseData.access_token) {
+      console.error(
+        "[AliExpress] Token error payload:",
+        responseData
+      );
+      res.status(500).send(`
+        <html>
+          <head><title>AliExpress Token Error</title></head>
+          <body>
+            <h1>❌ AliExpress Token Error</h1>
+            <pre>${JSON.stringify(responseData, null, 2)}</pre>
             <p>${
-              data.error_description ||
-              data.sub_msg ||
-              data.msg ||
+              responseData.error_description || // Standard OAuth
+              responseData.sub_msg || // AliExpress specific
+              responseData.msg || // AliExpress specific
+              responseData.message || // Common error field
               "Error in token response or no access_token returned"
             }</p>
           </body>
@@ -374,18 +329,19 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       return;
     }
 
+    // Successfully obtained tokens, use responseData directly
     await connectDB();
 
     let expiresInSeconds: number;
     // Using expire_time (absolute timestamp in ms) or expires_in (duration in s)
-    if (data.expire_time && typeof data.expire_time === "number") {
-      expiresInSeconds = Math.floor((data.expire_time - Date.now()) / 1000);
+    if (responseData.expire_time && typeof responseData.expire_time === "number") {
+      expiresInSeconds = Math.floor((responseData.expire_time - Date.now()) / 1000);
     } else if (
-      data.expires_in &&
-      (typeof data.expires_in === "number" ||
-        typeof data.expires_in === "string")
+      responseData.expires_in &&
+      (typeof responseData.expires_in === "number" ||
+        typeof responseData.expires_in === "string")
     ) {
-      expiresInSeconds = parseInt(String(data.expires_in), 10);
+      expiresInSeconds = parseInt(String(responseData.expires_in), 10);
     } else {
       console.warn(
         "[Aliexpress] Token expiry information not found or in unexpected format, defaulting to 1 hour."
@@ -403,8 +359,8 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     await AliToken.findOneAndUpdate(
       {},
       {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
+        access_token: responseData.access_token,
+        refresh_token: responseData.refresh_token,
         expires_at: new Date(Date.now() + expiresInSeconds * 1000),
       },
       { upsert: true, new: true }
@@ -416,9 +372,9 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
         <body>
           <h1>✅ AliExpress Connected</h1>
           <p>Your AliExpress account has been successfully connected.</p>
-          <p><b>Access Token:</b> ${data.access_token}</p> 
-          <p><b>Refresh Token:</b> ${data.refresh_token || "N/A"}</p>
-          <p><b>User Nick:</b> ${data.user_nick || "N/A"}</p>
+          <p><b>Access Token:</b> ${responseData.access_token}</p> 
+          <p><b>Refresh Token:</b> ${responseData.refresh_token || "N/A"}</p>
+          <p><b>User Nick:</b> ${responseData.user_nick || "N/A"}</p>
           <p><b>Expires At:</b> ${new Date(
             Date.now() + expiresInSeconds * 1000
           ).toLocaleString()}</p>
@@ -556,9 +512,10 @@ async function getAliAccessToken(): Promise<string> {
       });
 
       const refreshResponseText = await refreshResp.text();
-      let outerRefreshData: any;
+      let refreshResponseData: any; // Changed from outerRefreshData
+
       try {
-        outerRefreshData = JSON.parse(refreshResponseText);
+        refreshResponseData = JSON.parse(refreshResponseText);
       } catch (e) {
         console.error(
           "[AliExpress] Raw refresh token response (not JSON):",
@@ -570,83 +527,48 @@ async function getAliAccessToken(): Promise<string> {
         );
       }
 
+      // Assuming refresh token endpoint returns direct JSON, not GOP-wrapped.
+      // Check for errors directly in refreshResponseData.
+      // Error if refreshResponseData.code is present and not "0", OR if access_token is missing.
       if (
-        outerRefreshData.type === "ISV" || // Check for ISV error type
-        outerRefreshData.success !== true ||
-        (outerRefreshData.gopErrorCode !== "0" &&
-          outerRefreshData.gopErrorCode !== undefined) ||
-        !outerRefreshData.gopResponseBody
+        (refreshResponseData.code && refreshResponseData.code !== "0") ||
+        !refreshResponseData.access_token
       ) {
         console.error(
-          "[AliExpress] Refresh token error payload (outer GOP wrapper):",
-          outerRefreshData
-        );
-        // If refresh fails, user might need to re-authorize.
-        // Consider deleting the old token or marking it as invalid.
-        await AliToken.deleteOne({ _id: token._id }); // Example: remove invalid token
-        throw new Error(
-          outerRefreshData.sub_msg ||
-            outerRefreshData.msg ||
-            "Failed to refresh token (GOP error)"
-        );
-      }
-
-      let refreshData: any;
-      try {
-        refreshData = JSON.parse(outerRefreshData.gopResponseBody);
-      } catch (e) {
-        console.error(
-          "[AliExpress] Raw gopResponseBody for refresh (not JSON):",
-          outerRefreshData.gopResponseBody
-        );
-        throw new Error(
-          "AliExpress refresh gopResponseBody not valid JSON: " +
-            outerRefreshData.gopResponseBody
-        );
-      }
-
-      // Check for errors in the parsed gopResponseBody (refreshData)
-      // Error if refreshData.code is present and not "0", OR if access_token is missing.
-      if (
-        (refreshData.code && refreshData.code !== "0") ||
-        !refreshData.access_token
-      ) {
-        console.error(
-          "[AliExpress] Refresh token error payload (parsed gopResponseBody):",
-          refreshData
+          "[AliExpress] Refresh token error payload:",
+          refreshResponseData
         );
         // Log the specific error from AliExpress if available
         const specificError =
-          refreshData.error_description ||
-          refreshData.sub_msg ||
-          refreshData.msg ||
+          refreshResponseData.error_description || // Standard OAuth
+          refreshResponseData.sub_msg || // AliExpress specific
+          refreshResponseData.msg || // AliExpress specific
+          refreshResponseData.message || // Common error field
           "No access_token in refresh response or error code present";
         await AliToken.deleteOne({ _id: token._id });
         throw new Error(specificError);
       }
 
-      token.access_token = refreshData.access_token;
-      // IMPORTANT: The docs say "You must save the latest "refresh_token" to obtain a new "access_token"."
-      // and "the duration of the refresh token will not be reset"
-      // So, update refresh_token if a new one is provided.
-      if (refreshData.refresh_token) {
-        token.refresh_token = refreshData.refresh_token;
+      // Successfully refreshed tokens, use refreshResponseData directly
+      token.access_token = refreshResponseData.access_token;
+      if (refreshResponseData.refresh_token) {
+        token.refresh_token = refreshResponseData.refresh_token;
       }
 
       let newExpiresInSeconds: number;
       if (
-        refreshData.expire_time &&
-        typeof refreshData.expire_time === "number"
+        refreshResponseData.expire_time &&
+        typeof refreshResponseData.expire_time === "number"
       ) {
         newExpiresInSeconds = Math.floor(
-          (refreshData.expire_time - Date.now()) / 1000
+          (refreshResponseData.expire_time - Date.now()) / 1000
         );
       } else if (
-        refreshData.expires_in &&
-        (typeof refreshData.expires_in === "number" ||
-          typeof refreshData.expires_in === "string")
+        refreshResponseData.expires_in &&
+        (typeof refreshResponseData.expires_in === "number" ||
+          typeof refreshResponseData.expires_in === "string")
       ) {
-        newExpiresInSeconds = parseInt(String(refreshData.expires_in), 10);
+        newExpiresInSeconds = parseInt(String(refreshResponseData.expires_in), 10);
       } else {
         newExpiresInSeconds = 3600; // Default if not provided
       }
