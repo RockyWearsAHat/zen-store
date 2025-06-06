@@ -117,7 +117,7 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Generated state:", state);
 
     // Step 1 ── build the authorisation URL with the *documented* order
-    // Doc-ordered correctly
+    // Doc-ordered correctly, strings (not encoded) as per docs:
     const authParams = [
       ["response_type", "code"], // 1
       ["client_id", String(APP_KEY)], // 2
