@@ -163,22 +163,21 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
-    // Doc-ordered body: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
+    // ----- build token body in the order AliExpress expects -----
     const tokenPairs: [string, string][] = [
-      ["client_id", APP_KEY], // 1
-      ["client_secret", APP_SECRET], // 2
-      ["grant_type", "authorization_code"], // 3
-      ["code", code], // 4
-      ["redirect_uri", REDIRECT_URI], // 5
-      ["sp", "ae"], // 6
-      ["state", state || ""], // 7
-      ["view", "web"], // 8
+      ["code", code], // 1
+      ["grant_type", "authorization_code"], // 2
+      ["client_id", APP_KEY], // 3
+      ["client_secret", APP_SECRET], // 4
+      ["sp", "ae"], // 5
+      ["redirect_uri", REDIRECT_URI], // 6
+      ["state", state || ""], // 7 (optional)
+      ["view", "web"], // 8 (optional)
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
-
-    console.log("[AliExpress] Token request body:", body);
+    console.log("[AliExpress] Token body:", body);
 
     const resp = await fetch(TOKEN_ENDPOINT, {
       method: "POST",
@@ -189,12 +188,15 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     let data: any;
     try {
       data = await resp.json();
-    } catch (e) {
+    } catch {
+      // dump raw text to diagnose AliExpress errors
       const text = await resp.text();
+      console.error("[AliExpress] Raw token response:", text);
       throw new Error("AliExpress token response not JSON: " + text);
     }
 
     if (!data.access_token) {
+      console.error("[AliExpress] Token error payload:", data); // extra log
       // Show error to user for debugging
       res.status(500).send(`
         <html>
