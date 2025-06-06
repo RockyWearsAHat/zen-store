@@ -113,14 +113,14 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    // Doc-ordered params: response_type, client_id, redirect_uri, state, view, sp
+    // Doc-ordered params: client_id, response_type, redirect_uri, sp, state, view
     const authParams = new URLSearchParams([
-      ["response_type", "code"], // 1
-      ["client_id", APP_KEY], // 2
+      ["client_id", APP_KEY], // 1
+      ["response_type", "code"], // 2
       ["redirect_uri", REDIRECT_URI], // 3
-      ["state", state], // 4
-      ["view", "web"], // 5
-      ["sp", "ae"], // 6
+      ["sp", "ae"], // 4
+      ["state", state], // 5
+      ["view", "web"], // 6
     ]);
 
     const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
