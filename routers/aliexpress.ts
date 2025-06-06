@@ -113,17 +113,18 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    const authUrl = new URL("https://oauth.aliexpress.com/authorize");
-    authUrl.search = new URLSearchParams({
-      client_id: APP_KEY, // 515292
-      response_type: "code",
-      redirect_uri: "https://zen-essentials.store/ali/oauth/callback",
-      state: state, // your CSRF token
-      view: "web",
-      sp: "ae",
-    }).toString();
-
-    res.redirect(authUrl.toString());
+    // Doc-ordered params: client_id, response_type, redirect_uri, sp, state, view
+    const authParams = new URLSearchParams([
+      ["client_id", APP_KEY], // 1
+      ["response_type", "code"], // 2
+      ["redirect_uri", REDIRECT_URI], // 3
+      ["sp", "ae"], // 4
+      ["state", state], // 5
+      ["view", "web"], // 6
+    ]);
+    const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
+    console.log("[AliExpress] OAuth URL:", authUrl);
+    res.redirect(authUrl);
   } catch (err: any) {
     console.error("OAuth start error:", err);
     res
@@ -161,20 +162,21 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
 
-    // Step 2 ── token exchange body in the *documented* order
-    // Doc-ordered token body: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
+    // Doc-ordered body: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
     const tokenPairs: [string, string][] = [
-      ["code", code], // 4
+      ["client_id", APP_KEY], // 1
+      ["client_secret", APP_SECRET], // 2
       ["grant_type", "authorization_code"], // 3
-      ["client_id", String(APP_KEY)], // 1
-      ["client_secret", String(APP_SECRET)], // 2
-      ["redirect_uri", String(REDIRECT_URI)], // 5
+      ["code", code], // 4
+      ["redirect_uri", REDIRECT_URI], // 5
       ["sp", "ae"], // 6
       ["state", state || ""], // 7
       ["view", "web"], // 8
     ];
-    const body = tokenPairs.map(([k, v]) => `${k}=${v}`).join("&");
-    console.log("[AliExpress] Token endpoint:", TOKEN_ENDPOINT);
+    const body = tokenPairs
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join("&");
+
     console.log("[AliExpress] Token request body:", body);
 
     const resp = await fetch(TOKEN_ENDPOINT, {
