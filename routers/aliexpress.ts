@@ -257,13 +257,22 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       body,
     });
 
+    // Read the response body as text first
+    const responseText = await resp.text();
     let data: any;
+
     try {
-      data = await resp.json();
+      // Attempt to parse the text as JSON
+      data = JSON.parse(responseText);
     } catch (e) {
-      const text = await resp.text();
-      console.error("[AliExpress] Raw token response:", text);
-      throw new Error("AliExpress token response not JSON: " + text);
+      // If parsing fails, log the raw text and throw an error
+      console.error(
+        "[AliExpress] Raw token response (not JSON):",
+        responseText
+      );
+      throw new Error(
+        "AliExpress token response not valid JSON: " + responseText
+      );
     }
 
     // Check response structure from /auth/token/create
