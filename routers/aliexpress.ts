@@ -88,7 +88,7 @@ const TOKEN_ENDPOINT =
   process.env.ALI_TOKEN_ENDPOINT?.trim() ||
   "https://oauth.aliexpress.com/token";
 
-// Step 1: Start OAuth (use correct AliExpress OAuth URL and param names per Alibaba docs)
+// Step 1: Start OAuth (build authorize URL) -----------------------
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
     // Check for missing or empty APP_KEY
@@ -113,15 +113,16 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    // Doc-ordered params: client_id, response_type, redirect_uri, sp, state, view
+    // Doc-ordered params: response_type, client_id, redirect_uri, state, view, sp
     const authParams = new URLSearchParams([
-      ["client_id", APP_KEY], // 1
-      ["response_type", "code"], // 2
+      ["response_type", "code"], // 1
+      ["client_id", APP_KEY], // 2
       ["redirect_uri", REDIRECT_URI], // 3
-      ["sp", "ae"], // 4
-      ["state", state], // 5
-      ["view", "web"], // 6
+      ["state", state], // 4
+      ["view", "web"], // 5
+      ["sp", "ae"], // 6
     ]);
+
     const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
     console.log("[AliExpress] OAuth URL:", authUrl);
     res.redirect(authUrl);
