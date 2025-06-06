@@ -236,14 +236,13 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       REDIRECT_URI
     );
 
-    // Parameters for https://api-sg.aliexpress.com/auth/token/create
-    // Required: client_id, client_secret, code.
-    // Optional: redirect_uri, uuid.
+    // Parameters for https://api-sg.aliexpress.com/rest/auth/token/create
+    // Error message indicates "app_key" is mandatory.
     const tokenPairs: [string, string][] = [
-      ["client_id", APP_KEY],
+      ["app_key", APP_KEY], // Changed from client_id to app_key
       ["client_secret", APP_SECRET],
       ["code", code!],
-      ["redirect_uri", REDIRECT_URI],
+      ["redirect_uri", REDIRECT_URI], // Optional but good practice
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
@@ -277,14 +276,28 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
 
     // Handle GOP-wrapped response
     if (
+      outerData.type === "ISV" || // Check for ISV error type as well
       outerData.success !== true ||
-      outerData.gopErrorCode !== "0" ||
+      (outerData.gopErrorCode !== "0" &&
+        outerData.gopErrorCode !== undefined) || // Allow gopErrorCode to be missing if success is true
       !outerData.gopResponseBody
     ) {
-      console.error(
-        "[AliExpress] Token error payload (outer GOP wrapper):",
-        outerData
-      );
+      // Check if the error is specifically the one from the prompt
+      if (
+        outerData.code === "MissingParameter" &&
+        outerData.message &&
+        outerData.message.includes("app_key")
+      ) {
+        console.error(
+          "[AliExpress] Token error: Missing 'app_key' parameter, even though it was sent. Check API endpoint or parameter naming.",
+          outerData
+        );
+      } else {
+        console.error(
+          "[AliExpress] Token error payload (outer GOP wrapper):",
+          outerData
+        );
+      }
       res.status(500).send(`
         <html>
           <head><title>AliExpress OAuth Error</title></head>
@@ -437,13 +450,11 @@ async function getAliAccessToken(): Promise<string> {
       );
 
       const refreshParams = new URLSearchParams();
-      // Parameters for /auth/token/refresh based on docs: refresh_token, client_id, client_secret
-      // The PHP example for refresh also uses /rest endpoint.
+      // Parameters for /auth/token/refresh. Assuming it also expects app_key.
+      refreshParams.append("app_key", APP_KEY); // Changed from client_id
+      refreshParams.append("client_secret", APP_SECRET);
       refreshParams.append("refresh_token", token.refresh_token);
-      refreshParams.append("client_id", APP_KEY); // Often required for refresh
-      refreshParams.append("client_secret", APP_SECRET); // Often required for refresh
-      // The docs also mention grant_type for some refresh flows, but /auth/token/refresh seems simpler.
-      // Let's stick to the params shown in the /auth/token/refresh example.
+      // According to docId=1590, /auth/token/refresh does not need redirect_uri or other grant_types.
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         // Using new REFRESH_TOKEN_ENDPOINT
@@ -468,8 +479,10 @@ async function getAliAccessToken(): Promise<string> {
       }
 
       if (
+        outerRefreshData.type === "ISV" || // Check for ISV error type
         outerRefreshData.success !== true ||
-        outerRefreshData.gopErrorCode !== "0" ||
+        (outerRefreshData.gopErrorCode !== "0" &&
+          outerRefreshData.gopErrorCode !== undefined) ||
         !outerRefreshData.gopResponseBody
       ) {
         console.error(
@@ -505,10 +518,14 @@ async function getAliAccessToken(): Promise<string> {
           "[AliExpress] Refresh token error payload (parsed gopResponseBody):",
           refreshData
         );
-        await AliToken.deleteOne({ _id: token._id }); // Example: remove invalid token
-        throw new Error(
-          refreshData.error_description || "No access_token in refresh response"
-        );
+        // Log the specific error from AliExpress if available
+        const specificError =
+          refreshData.msg ||
+          refreshData.sub_msg ||
+          refreshData.error_description ||
+          "No access_token in refresh response";
+        await AliToken.deleteOne({ _id: token._id });
+        throw new Error(specificError);
       }
 
       token.access_token = refreshData.access_token;
