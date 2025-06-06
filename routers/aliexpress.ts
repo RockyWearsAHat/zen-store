@@ -1,5 +1,4 @@
 import { Request, Response, Router } from "express";
-import { connectDB } from "../db";
 import crypto from "crypto";
 import mongoose from "mongoose";
 // --- add express-session ---
@@ -305,11 +304,11 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     // Assuming token endpoints return direct JSON, not GOP-wrapped.
     // Check for errors directly in responseData.
     // Error if responseData.code is present and not "0", OR if access_token is missing.
-    if ((responseData.code && responseData.code !== "0") || !responseData.access_token) {
-      console.error(
-        "[AliExpress] Token error payload:",
-        responseData
-      );
+    if (
+      (responseData.code && responseData.code !== "0") ||
+      !responseData.access_token
+    ) {
+      console.error("[AliExpress] Token error payload:", responseData);
       res.status(500).send(`
         <html>
           <head><title>AliExpress Token Error</title></head>
@@ -329,13 +328,15 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       return;
     }
 
-    // Successfully obtained tokens, use responseData directly
-    await connectDB();
-
     let expiresInSeconds: number;
     // Using expire_time (absolute timestamp in ms) or expires_in (duration in s)
-    if (responseData.expire_time && typeof responseData.expire_time === "number") {
-      expiresInSeconds = Math.floor((responseData.expire_time - Date.now()) / 1000);
+    if (
+      responseData.expire_time &&
+      typeof responseData.expire_time === "number"
+    ) {
+      expiresInSeconds = Math.floor(
+        (responseData.expire_time - Date.now()) / 1000
+      );
     } else if (
       responseData.expires_in &&
       (typeof responseData.expires_in === "number" ||
@@ -458,7 +459,6 @@ function toQueryString(params: Record<string, string>): string {
 // Helper: get valid access token (refresh if needed)
 async function getAliAccessToken(): Promise<string> {
   try {
-    await connectDB();
     let token = await AliToken.findOne().exec();
     if (!token || !token.access_token)
       throw new Error("AliExpress not connected or token missing"); // Added check for token.access_token
@@ -568,7 +568,10 @@ async function getAliAccessToken(): Promise<string> {
         (typeof refreshResponseData.expires_in === "number" ||
           typeof refreshResponseData.expires_in === "string")
       ) {
-        newExpiresInSeconds = parseInt(String(refreshResponseData.expires_in), 10);
+        newExpiresInSeconds = parseInt(
+          String(refreshResponseData.expires_in),
+          10
+        );
       } else {
         newExpiresInSeconds = 3600; // Default if not provided
       }

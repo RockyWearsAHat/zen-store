@@ -1,13 +1,19 @@
 import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config();
 
-const uri = process.env.MONGO_URI;
-
-export async function connectDB(): Promise<typeof mongoose> {
-  if (mongoose.connection.readyState === 1) return mongoose; // already open
-  try {
-    return await mongoose.connect(uri ?? "");
-  } catch (error) {
-    console.error("Error connecting to MongoDB:", error);
-    throw error;
+mongoose.connect(
+  process.env.MONGO_LOCAL
+    ? ``
+    : `mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONGO_PASSWORD}@cluster0.8rpqnmn.mongodb.net/balls?retryWrites=true&w=majority`,
+  {
+    retryWrites: true,
+    retryReads: true,
   }
-}
+);
+mongoose.connection.on("error", console.log.bind(console, "connection error:"));
+mongoose.connection.once("open", () => {
+  console.log("Connected to Mongo");
+});
+
+export const db = mongoose.connection;

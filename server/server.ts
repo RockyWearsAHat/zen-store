@@ -3,6 +3,7 @@ import express from "express";
 import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
+import "./db";
 
 export const app = express();
 
