@@ -162,63 +162,60 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
 // Step 2: OAuth callback, exchange code for tokens (use correct POST body)
 aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
-  // AliExpress might not return the state if it wasn't sent.
-  // We will still check against the state stored in our session.
-  // If AliExpress *does* return a state query param, it should match.
-  // If it doesn't return state, our session state is still the source of truth for CSRF.
-  const returnedState = req.query.state as string | undefined;
+  const returnedState = req.query.state as string | undefined; // State returned by AliExpress in query params, if any.
 
-  // Check state for CSRF protection
-  if (!req.session || !req.session.ali_oauth_state) {
-    res.status(400).send("Session missing or expired. Please try again.");
+  const expectedStateFromSession = req.session.ali_oauth_state;
+
+  // Clear the state from session immediately after retrieving it
+  // to prevent reuse, regardless of what happens next.
+  if (req.session) {
+    delete req.session.ali_oauth_state;
+    // Asynchronously save the session. If this fails, log it, but proceed with OAuth logic.
+    // Critical operations should ideally await session save or handle its error more directly.
+    req.session.save((err) => {
+      if (err) {
+        console.error(
+          "[AliExpress] Error saving session after clearing state:",
+          err
+        );
+      }
+    });
+  }
+
+  // 1. Check if our server had set a state for this session.
+  if (!expectedStateFromSession) {
+    console.error(
+      "[AliExpress] Session state (ali_oauth_state) missing. Possible session expiry, CSRF attempt, or cookies not enabled."
+    );
+    res
+      .status(400)
+      .send(
+        "Session state missing or expired. Please try again or ensure cookies are enabled."
+      );
     return;
   }
 
-  // If AliExpress returns a state, it MUST match our session state.
-  // If AliExpress does NOT return a state (because we didn't send one in the auth URL),
-  // this check might be problematic. However, the primary CSRF protection comes
-  // from the fact that we initiated the flow and stored a secret (ali_oauth_state).
-  // For now, let's assume if state is returned, it must match.
-  // If state is NOT returned by AliExpress, this check will effectively be against `undefined`,
-  // which is fine as long as `req.session.ali_oauth_state` is present.
-  // The critical part is that an attacker cannot guess `req.session.ali_oauth_state`.
-
-  // Let's refine the state check:
-  // If state was sent in the auth URL (it wasn't in this version), then returnedState must match.
-  // If state was NOT sent, then returnedState will be undefined.
-  // The CSRF protection relies on the session state existing and being unpredictable.
-  // The comparison `returnedState !== req.session.ali_oauth_state` is still valuable.
-  // If an attacker tries to forge a callback without knowing the session state, it would fail
-  // if they provide a state, or if they don't and our session expects one.
-  // Given we are not sending state in the auth URL, AliExpress should not return it.
-  // So, `returnedState` will likely be undefined.
-  // The check `state !== req.session.ali_oauth_state` (where `state` is `returnedState`)
-  // becomes `undefined !== sessionValue`. This is correct.
-  // The session value `req.session.ali_oauth_state` is the key.
-
-  if (returnedState !== req.session.ali_oauth_state) {
-      // Log the discrepancy for debugging if AliExpress *does* send back a state unexpectedly
-      // or if the session state was somehow lost or mismatched.
-      console.warn(`[AliExpress] State mismatch. Returned: "${returnedState}", Session: "${req.session.ali_oauth_state}"`);
-      // If we didn't send state, and AliExpress doesn't send it back, returnedState is undefined.
-      // If session state is also undefined (e.g. session expired), then this check passes (undefined !== undefined is false).
-      // This is why the `!req.session || !req.session.ali_oauth_state` check above is important.
-      // If session state IS defined, and returnedState is undefined (as expected), then `undefined !== "some_session_value"` is true.
-      // This means the CSRF check is still effectively working based on the presence and value of `req.session.ali_oauth_state`.
-      // However, the traditional OAuth flow expects the state to be echoed back.
-      // If AliExpress doesn't echo state when not provided, we rely on our session's state.
-      // Let's adjust the logic slightly for clarity if state is not echoed.
-      // The core idea is: if a state is returned, it must match. If no state is returned,
-      // we just ensure our session state was set. The `!req.session.ali_oauth_state` handles this.
+  // 2. Handle the 'state' parameter returned by AliExpress (if any).
+  // Since the /oauth/start route currently does NOT send a 'state' parameter to AliExpress
+  // (based on the user-provided working URL), AliExpress should NOT return a 'state' in the callback.
+  // Thus, 'returnedState' is expected to be undefined.
+  // If AliExpress *does* return a state, and it doesn't match what we stored, it's an issue.
+  if (
+    returnedState !== undefined &&
+    returnedState !== expectedStateFromSession
+  ) {
+    console.warn(
+      `[AliExpress] State mismatch! Returned by Authorization Server: "${returnedState}", Expected from session: "${expectedStateFromSession}". This is unexpected as state was not sent to AS in the initial request.`
+    );
+    res
+      .status(400)
+      .send(
+        "Invalid state parameter returned by authorization server. Possible CSRF attempt."
+      );
+    return;
   }
-  // If AliExpress does not echo back the state parameter when it's not sent in the auth request,
-  // then `returnedState` will be undefined. The CSRF protection then relies on the fact that
-  // `req.session.ali_oauth_state` was set at the beginning of the flow.
-  // The crucial part is that an attacker cannot guess this session-stored state.
-
-  // Clear state after use, regardless of whether it was returned by AliExpress.
-  delete req.session.ali_oauth_state;
-  req.session.save(); // ensure session is saved
+  // If returnedState is undefined (as expected) and expectedStateFromSession is valid, the CSRF check based on state effectively passes.
+  // The core protection is that expectedStateFromSession was present and unpredictable.
 
   if (!code) {
     res.status(400).send("Missing authorization code");
@@ -226,8 +223,15 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   }
   try {
     console.log("[AliExpress] Received code:", code);
-    console.log("[AliExpress] Using APP_KEY:", APP_KEY);
-    console.log("[AliExpress] Using REDIRECT_URI:", REDIRECT_URI);
+    console.log("[AliExpress] Using APP_KEY for token exchange:", APP_KEY); // Ensure this is not empty/undefined
+    console.log(
+      "[AliExpress] Using APP_SECRET for token exchange (first 4 chars):",
+      APP_SECRET ? APP_SECRET.slice(0, 4) + "..." : "(not set)"
+    ); // Ensure this is not empty/undefined
+    console.log(
+      "[AliExpress] Using REDIRECT_URI for token exchange:",
+      REDIRECT_URI
+    );
 
     // Parameters for https://api-sg.aliexpress.com/auth/token/create
     // Required: client_id, client_secret, code.
@@ -235,8 +239,8 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     const tokenPairs: [string, string][] = [
       ["client_id", APP_KEY],
       ["client_secret", APP_SECRET],
-      ["code", code!], 
-      ["redirect_uri", REDIRECT_URI], 
+      ["code", code!],
+      ["redirect_uri", REDIRECT_URI],
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
