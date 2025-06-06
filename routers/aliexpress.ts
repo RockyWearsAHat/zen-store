@@ -83,10 +83,13 @@ aliexpressRouter.get("/health", (_req, res) => {
 
 /* ────────────── AliExpress OAuth Endpoints ────────────── */
 
-// ─── OAuth endpoints (allow override for easy testing) ───────────
+// ─── OAuth endpoints based on provided documentation (docId=1590) ───────────
+const AUTH_ENDPOINT =
+  process.env.ALI_AUTH_ENDPOINT?.trim() ||
+  "https://api-sg.aliexpress.com/oauth/authorize"; // Updated
 const TOKEN_ENDPOINT =
   process.env.ALI_TOKEN_ENDPOINT?.trim() ||
-  "https://oauth.aliexpress.com/token";
+  "https://api-sg.aliexpress.com/auth/token/create"; // Updated
 
 // Step 1: Start OAuth (build authorize URL) -----------------------
 aliexpressRouter.get("/oauth/start", (req, res) => {
@@ -130,20 +133,21 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
         `"${state}"`
       );
 
-      // Parameters in the order specified by AliExpress documentation:
-      // client_id, response_type, redirect_uri, sp, state, view
+      // Parameters based on the example: response_type, force_auth, redirect_uri, client_id
+      // Adding state for CSRF, and view/sp as they are common.
       const authParams = new URLSearchParams([
-        ["client_id", APP_KEY],
         ["response_type", "code"],
+        ["force_auth", "true"], // Added from example
         ["redirect_uri", REDIRECT_URI],
-        ["sp", "ae"], // Re-added
+        ["client_id", APP_KEY],
         ["state", state],
-        ["view", "web"], // Re-added
+        ["view", "web"], // Kept from previous attempts, optional
+        ["sp", "ae"], // Kept from previous attempts, optional
       ]);
 
-      const authUrl = `https://oauth.aliexpress.com/authorize?${authParams.toString()}`;
+      const authUrl = `${AUTH_ENDPOINT}?${authParams.toString()}`;
       console.log(
-        "[AliExpress] Attempting OAuth URL (with sp & view):",
+        "[AliExpress] Attempting OAuth URL (api-sg, force_auth):",
         authUrl
       );
       res.redirect(authUrl);
@@ -183,22 +187,23 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     console.log("[AliExpress] Using APP_KEY:", APP_KEY);
     console.log("[AliExpress] Using REDIRECT_URI:", REDIRECT_URI);
 
-    // Doc-ordered body for token exchange: grant_type, code, client_id, client_secret, redirect_uri, sp, view, state
+    // Parameters for https://api-sg.aliexpress.com/auth/token/create
+    // Required: client_id, client_secret, code.
+    // Optional: redirect_uri, uuid.
     const tokenPairs: [string, string][] = [
-      ["grant_type", "authorization_code"], // 1
-      ["code", code], // 2
-      ["client_id", APP_KEY], // 3
-      ["client_secret", APP_SECRET], // 4
-      ["redirect_uri", REDIRECT_URI], // 5
-      ["sp", "ae"], // 6
-      ["view", "web"], // 7 (Optional, but good to include if used in auth)
-      ["state", state || ""], // 8 (Optional, but good to include if used in auth)
+      ["client_id", APP_KEY],
+      ["client_secret", APP_SECRET],
+      ["code", code!], // code is verified not undefined above
+      ["redirect_uri", REDIRECT_URI], // Included, though optional, for robustness
     ];
     const body = tokenPairs
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
 
-    console.log("[AliExpress] Token request body:", body);
+    console.log(
+      "[AliExpress] Token request body (for /auth/token/create):",
+      body
+    );
 
     const resp = await fetch(TOKEN_ENDPOINT, {
       method: "POST",
@@ -209,15 +214,16 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     let data: any;
     try {
       data = await resp.json();
-    } catch {
-      // dump raw text to diagnose AliExpress errors
+    } catch (e) {
       const text = await resp.text();
       console.error("[AliExpress] Raw token response:", text);
       throw new Error("AliExpress token response not JSON: " + text);
     }
 
+    // Check response structure from /auth/token/create
+    // It might return 'expire_time' (a timestamp in ms) instead of 'expires_in' (a duration in seconds)
     if (!data.access_token) {
-      console.error("[AliExpress] Token error payload:", data); // extra log
+      console.error("[AliExpress] Token error payload:", data);
       // Show error to user for debugging
       res.status(500).send(`
         <html>
@@ -233,14 +239,38 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     }
 
     await connectDB();
+
+    let expiresInSeconds: number;
+    if (data.expire_time && typeof data.expire_time === "number") {
+      // If expire_time is a future timestamp in milliseconds
+      expiresInSeconds = Math.floor((data.expire_time - Date.now()) / 1000);
+    } else if (
+      data.expires_in &&
+      (typeof data.expires_in === "number" ||
+        typeof data.expires_in === "string") // Corrected type check
+    ) {
+      // If expires_in is a duration in seconds
+      expiresInSeconds = parseInt(String(data.expires_in), 10);
+    } else {
+      console.warn(
+        "[Aliexpress] Token expiry information not found or in unexpected format, defaulting to 1 hour."
+      );
+      expiresInSeconds = 3600; // Default to 1 hour if not provided or recognized
+    }
+
+    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
+      console.warn(
+        `[Aliexpress] Invalid expiresInSeconds calculated: ${expiresInSeconds}. Defaulting to 1 hour.`
+      );
+      expiresInSeconds = 3600;
+    }
+
     await AliToken.findOneAndUpdate(
       {},
       {
         access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        expires_at: new Date(
-          Date.now() + (parseInt(data.expires_in, 10) || 0) * 1000
-        ), // Ensure expires_in is treated as number
+        refresh_token: data.refresh_token, // Ensure this field is returned by /auth/token/create
+        expires_at: new Date(Date.now() + expiresInSeconds * 1000),
       },
       { upsert: true, new: true }
     );
@@ -253,7 +283,10 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
           <p>Your AliExpress account has been successfully connected.</p>
           <p><b>Access Token:</b> ${data.access_token}</p> 
           <p><b>Refresh Token:</b> ${data.refresh_token || "N/A"}</p>
-          <p><b>Expires In:</b> ${data.expires_in} seconds</p>
+          <p><b>User Nick:</b> ${data.user_nick || "N/A"}</p>
+          <p><b>Expires At:</b> ${new Date(
+            Date.now() + expiresInSeconds * 1000
+          ).toLocaleString()}</p>
           <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
         </body>
       </html>
