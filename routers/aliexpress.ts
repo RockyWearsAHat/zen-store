@@ -84,9 +84,6 @@ aliexpressRouter.get("/health", (_req, res) => {
 /* ────────────── AliExpress OAuth Endpoints ────────────── */
 
 // ─── OAuth endpoints (allow override for easy testing) ───────────
-const AUTH_ENDPOINT =
-  process.env.ALI_AUTH_ENDPOINT?.trim() ||
-  "https://oauth.aliexpress.com/authorize"; // 🔄 use up-to-date endpoint
 const TOKEN_ENDPOINT =
   process.env.ALI_TOKEN_ENDPOINT?.trim() ||
   "https://oauth.aliexpress.com/token";
@@ -116,25 +113,17 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
-    // Step 1 ── build the authorisation URL with the *documented* order
-    // Doc-ordered correctly, strings (not encoded) as per docs:
-    const authParams = [
-      ["response_type", "code"], // 1
-      ["client_id", String(APP_KEY)], // 2
-      ["redirect_uri", String(REDIRECT_URI)], // 3
-      ["state", String(state)], // 4
-      ["view", "web"], // 5
-      ["sp", "ae"], // 6
-    ]
-      .reduce((acc, [key, value]) => {
-        acc.push(`${key}=${value}`);
-        return acc;
-      }, [])
-      .join("&");
-    const authUrl = `${AUTH_ENDPOINT}?${authParams}`;
-    console.log("[AliExpress] Auth endpoint:", AUTH_ENDPOINT);
-    console.log("[AliExpress] OAuth URL:", authUrl);
-    res.redirect(authUrl);
+    const authUrl = new URL("https://oauth.aliexpress.com/authorize");
+    authUrl.search = new URLSearchParams({
+      client_id: APP_KEY, // 515292
+      response_type: "code",
+      redirect_uri: "https://zen-essentials.store/ali/oauth/callback",
+      state: state, // your CSRF token
+      view: "web",
+      sp: "ae",
+    }).toString();
+
+    res.redirect(authUrl.toString());
   } catch (err: any) {
     console.error("OAuth start error:", err);
     res
