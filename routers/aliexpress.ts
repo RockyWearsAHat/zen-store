@@ -110,22 +110,28 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
     // Generate a random state and store in session for CSRF protection
     const state = crypto.randomBytes(8).toString("hex");
     req.session.ali_oauth_state = state;
+    req.session.save(); // ensure session is saved
     // Log for debugging
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
     console.log("[AliExpress] Generated state:", state);
 
     // Step 1 ── build the authorisation URL with the *documented* order
-    // Doc-ordered parameters: client_id, response_type, redirect_uri, sp, state, view
-    const authParams = new URLSearchParams([
-      ["client_id", String(APP_KEY)], // 1
-      ["response_type", "code"], // 2
-      ["redirect_uri", REDIRECT_URI], // 3
-      ["sp", "ae"], // 4  ← was missing / misplaced
-      ["state", state], // 5
-      ["view", "web"], // 6
-    ]);
-    const authUrl = `${AUTH_ENDPOINT}?${authParams.toString()}`;
+    // Doc-ordered correctly
+    const authParams = [
+      ["response_type", "code"], // 1
+      ["client_id", String(APP_KEY)], // 2
+      ["redirect_uri", String(REDIRECT_URI)], // 3
+      ["state", String(state)], // 4
+      ["view", "web"], // 5
+      ["sp", "ae"], // 6
+    ]
+      .reduce((acc, [key, value]) => {
+        acc.push(`${key}=${value}`);
+        return acc;
+      }, [])
+      .join("&");
+    const authUrl = `${AUTH_ENDPOINT}?${authParams}`;
     console.log("[AliExpress] Auth endpoint:", AUTH_ENDPOINT);
     console.log("[AliExpress] OAuth URL:", authUrl);
     res.redirect(authUrl);
@@ -141,6 +147,9 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
 aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
   const state = req.query.state as string | undefined;
+
+  console.log(req);
+
   // Check state for CSRF protection
   if (!req.session || !req.session.ali_oauth_state) {
     res.status(400).send("Session missing or expired. Please try again.");
@@ -152,26 +161,13 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   }
   // Optionally clear state after use
   delete req.session.ali_oauth_state;
+  req.session.save(); // ensure session is saved
 
   if (!code) {
     res.status(400).send("Missing authorization code");
     return;
   }
   try {
-    // Check for missing or empty APP_KEY before making token request
-    if (!APP_KEY) {
-      res
-        .status(500)
-        .send(
-          "AliExpress not configured: APP_KEY missing or empty. Please set ALI_APP_KEY in your environment."
-        );
-      return;
-    }
-    if (!REDIRECT_URI) {
-      res.status(500).send("AliExpress not configured (missing REDIRECT_URI)");
-      return;
-    }
-    // Log for debugging
     console.log("[AliExpress] Received code:", code);
     console.log("[AliExpress] Using APP_KEY:", `"${APP_KEY}"`);
     console.log("[AliExpress] Using REDIRECT_URI:", `"${REDIRECT_URI}"`);
@@ -179,18 +175,16 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     // Step 2 ── token exchange body in the *documented* order
     // Doc-ordered token body: client_id, client_secret, grant_type, code, redirect_uri, sp, state, view
     const tokenPairs: [string, string][] = [
+      ["code", code], // 4
+      ["grant_type", "authorization_code"], // 3
       ["client_id", String(APP_KEY)], // 1
       ["client_secret", String(APP_SECRET)], // 2
-      ["grant_type", "authorization_code"], // 3
-      ["code", code], // 4
-      ["redirect_uri", REDIRECT_URI], // 5
+      ["redirect_uri", String(REDIRECT_URI)], // 5
       ["sp", "ae"], // 6
       ["state", state || ""], // 7
       ["view", "web"], // 8
     ];
-    const body = tokenPairs
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join("&");
+    const body = tokenPairs.map(([k, v]) => `${k}=${v}`).join("&");
     console.log("[AliExpress] Token endpoint:", TOKEN_ENDPOINT);
     console.log("[AliExpress] Token request body:", body);
 
