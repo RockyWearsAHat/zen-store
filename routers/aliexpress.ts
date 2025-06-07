@@ -371,17 +371,12 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       return;
     }
 
-    /* ---------- OAuth callback : calc expiresInSeconds ---------- */
-    let expiresInSeconds: number;
-    if (responseData.expire_time)
-      expiresInSeconds = Math.floor(
-        (Number(responseData.expire_time) - Date.now()) / 1000
-      );
-    else if (responseData.expires_in)
-      expiresInSeconds = Number(responseData.expires_in);
-    else expiresInSeconds = ONE_DAY / 1000; // default 24 h
-    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0)
-      expiresInSeconds = ONE_DAY / 1000;
+    /* ---------- OAuth callback : derive expiresInSeconds ---------- */
+    const expiresInSecondsRaw = Number(responseData.expires_in);
+    const expiresInSeconds =
+      !isNaN(expiresInSecondsRaw) && expiresInSecondsRaw > 0
+        ? expiresInSecondsRaw
+        : ONE_DAY / 1000; // fallback (24 h)
 
     // Ensure database is connected before writing tokens
     await connectDB();
@@ -496,25 +491,22 @@ function signAliExpressRequest(
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
-    let tokenDoc = await AliToken.findOne().exec(); // ← allow reassignment
-
+    let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
     /* ---- decide if we need to refresh ---- */
     const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = expMs === 0 || expMs - Date.now() < HALF_HOUR; // 30-min margin
+    const expSoon = expMs === 0 || expMs - Date.now() < HALF_HOUR;
     const needsRefresh = forceRefresh || (tokenDoc.refresh_token && expSoon);
     if (!needsRefresh) return tokenDoc.access_token!;
 
     console.log("[AliExpress] Refreshing access_token …");
 
-    /* ---- build signed refresh body (SDK style) ---- */
+    /* ---- build signed refresh body ---- */
     const ts = Date.now().toString();
-    // ➊ include client_secret again (required, same as /auth/token/create)
     const p: Record<string, string> = {
       app_key: APP_KEY,
-      client_secret: APP_SECRET, // <─ back again
-      refresh_token: tokenDoc.refresh_token!,
+      refresh_token: tokenDoc.refresh_token!, // docs: only this user-param
       timestamp: ts,
       sign_method: "sha256",
     };
@@ -535,20 +527,15 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     }
     if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
 
-    /* ---- compute new expiry ---- */
-    let secs = data.expire_time
-      ? Math.floor((Number(data.expire_time) - Date.now()) / 1000)
-      : data.expires_in
-      ? Number(data.expires_in)
-      : ONE_DAY / 1000;
-    if (!secs || secs <= 0) secs = ONE_DAY / 1000; // fallback 24 h
+    /* ---------- getAliAccessToken : compute new expiry from expires_in ---------- */
+    let secs = Number(data.expires_in);
+    if (isNaN(secs) || secs <= 0) secs = ONE_DAY / 1000; // fallback 24 h
     const newExp = new Date(Date.now() + secs * 1000);
 
     /* ---- upsert ---- */
     const update: Record<string, any> = { expires_at: newExp };
     if (data.access_token) update.access_token = data.access_token;
     if (data.refresh_token) update.refresh_token = data.refresh_token;
-
     tokenDoc = await AliToken.findOneAndUpdate({}, update, {
       new: true,
       upsert: true,
