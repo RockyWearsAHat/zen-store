@@ -576,3 +576,15 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     console.error("[AliExpress Init] Forced refresh failed:", err)
   );
 })();
+
+/* ---------- ensure-fresh token on every invocation ---------- */
+aliexpressRouter.use(async (_req, _res, next) => {
+  try {
+    // not forced: will only hit the network if token is near expiry / missing
+    await getAliAccessToken();
+  } catch (e) {
+    console.error("[AliExpress] Auto-refresh on invocation failed:", e);
+    // continue anyway – routes can still reply with 401 if needed
+  }
+  next();
+});
