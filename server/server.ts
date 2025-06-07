@@ -3,7 +3,6 @@ import express from "express";
 import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
-import { getAliAccessToken } from "../routers/aliexpress"; // <- NEW
 
 // @ts-expect-error
 import { db } from "./db";
@@ -51,16 +50,6 @@ const startServer = async () => {
     if (process.env["NETLIFY"]) return;
 
     app.listen(process.env.PORT || 4000, async () => {
-      // Try to refresh AliExpress access token on cold start
-      // This will use the stored refresh_token to get a new access_token
-      // If this fails, it will log the error but not crash the server
-      try {
-        console.log("[AliExpress] Cold-start: forcing token refresh …");
-        await getAliAccessToken(true); // uses stored refresh_token
-      } catch (e) {
-        console.error("[AliExpress] Cold-start refresh failed:", e);
-      }
-
       console.log(
         !process.env["NETLIFY"] ? "Server started on http://localhost:4000" : ""
       );
