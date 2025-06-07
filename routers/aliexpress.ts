@@ -97,35 +97,23 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 // Global variable to store the token refresh timeout
 let tokenRefreshTimeoutId: NodeJS.Timeout | null = null;
 
-/**
- * Schedules a proactive token refresh.
- * @param expiresAt The Date object when the current token expires.
- */
+/* ────── constants for timing ────── */
+const ONE_MIN = 60_000;
+const HALF_HOUR = 30 * ONE_MIN;
+const ONE_DAY = 24 * 60 * ONE_MIN;
+
+/* ---------- scheduleTokenRefresh ---------- */
 function scheduleTokenRefresh(expiresAt: Date) {
-  if (tokenRefreshTimeoutId) {
-    clearTimeout(tokenRefreshTimeoutId);
-    tokenRefreshTimeoutId = null;
-  }
-
+  if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
   const now = Date.now();
-  // Set buffer to refresh 5 minutes before actual expiry
-  const refreshBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
-  let refreshDelay = expiresAt.getTime() - now - refreshBuffer;
-
-  if (refreshDelay < 0) {
-    // If the token is already past its ideal refresh point (or expired)
-    // schedule a refresh attempt very soon (e.g., in 10 seconds).
-    refreshDelay = 10000; // 10 seconds
-    console.warn(
-      `[AliExpress] Token is past ideal refresh point or expired. Scheduling refresh in 10s. Expires at: ${expiresAt.toISOString()}`
-    );
-  }
+  let delay = expiresAt.getTime() - now - HALF_HOUR; // refresh 30 min early
+  if (delay < 0) delay = 10_000; // already late → 10 s
 
   console.log(
     `[AliExpress] Scheduling token refresh in ${Math.round(
-      refreshDelay / 1000 / 60
+      delay / 1000 / 60
     )} minutes (at ${new Date(
-      now + refreshDelay
+      now + delay
     ).toISOString()}). Current token expires at: ${expiresAt.toISOString()}`
   );
 
@@ -145,7 +133,7 @@ function scheduleTokenRefresh(expiresAt: Date) {
       // Depending on the error, you might want to implement a retry mechanism here
       // or rely on the application's startup/initialization logic to reschedule.
     }
-  }, refreshDelay);
+  }, delay);
 }
 
 // Step 1: Start OAuth (build authorize URL) -----------------------
@@ -383,34 +371,17 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       return;
     }
 
+    /* ---------- OAuth callback : calc expiresInSeconds ---------- */
     let expiresInSeconds: number;
-    // Using expire_time (absolute timestamp in ms) or expires_in (duration in s)
-    if (
-      responseData.expire_time &&
-      typeof responseData.expire_time === "number"
-    ) {
+    if (responseData.expire_time)
       expiresInSeconds = Math.floor(
-        (responseData.expire_time - Date.now()) / 1000
+        (Number(responseData.expire_time) - Date.now()) / 1000
       );
-    } else if (
-      responseData.expires_in &&
-      (typeof responseData.expires_in === "number" ||
-        typeof responseData.expires_in === "string")
-    ) {
-      expiresInSeconds = parseInt(String(responseData.expires_in), 10);
-    } else {
-      console.warn(
-        "[Aliexpress] Token expiry information not found or in unexpected format, defaulting to 1 hour."
-      );
-      expiresInSeconds = 3600; // Default to 1 hour if not provided or recognized
-    }
-
-    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0) {
-      console.warn(
-        `[Aliexpress] Invalid expiresInSeconds calculated: ${expiresInSeconds}. Defaulting to 1 hour.`
-      );
-      expiresInSeconds = 3600;
-    }
+    else if (responseData.expires_in)
+      expiresInSeconds = Number(responseData.expires_in);
+    else expiresInSeconds = ONE_DAY / 1000; // default 24 h
+    if (isNaN(expiresInSeconds) || expiresInSeconds <= 0)
+      expiresInSeconds = ONE_DAY / 1000;
 
     // Ensure database is connected before writing tokens
     await connectDB();
@@ -525,13 +496,13 @@ function signAliExpressRequest(
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
-    let tokenDoc = await AliToken.findOne().exec();
+    let tokenDoc = await AliToken.findOne().exec(); // ← allow reassignment
+
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
     /* ---- decide if we need to refresh ---- */
-    const fiveMin = 5 * 60_000;
     const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = expMs === 0 || expMs - Date.now() < fiveMin;
+    const expSoon = expMs === 0 || expMs - Date.now() < HALF_HOUR; // 30-min margin
     const needsRefresh = forceRefresh || (tokenDoc.refresh_token && expSoon);
     if (!needsRefresh) return tokenDoc.access_token!;
 
@@ -569,8 +540,8 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
       ? Math.floor((Number(data.expire_time) - Date.now()) / 1000)
       : data.expires_in
       ? Number(data.expires_in)
-      : 3600;
-    if (!secs || secs <= 0) secs = 3600;
+      : ONE_DAY / 1000;
+    if (!secs || secs <= 0) secs = ONE_DAY / 1000; // fallback 24 h
     const newExp = new Date(Date.now() + secs * 1000);
 
     /* ---- upsert ---- */
@@ -596,7 +567,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 }
 /* ---------- end helper ---------- */
 
-/* ---------- start-up: force one refresh ---------- */
+/* ---------- start-up : keep forced refresh ---------- */
 (async () => {
   await connectDB();
   await getAliAccessToken(true).catch((err) =>
