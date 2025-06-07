@@ -522,34 +522,31 @@ function signAliExpressRequest(
 // }
 
 // ---------------- getAliAccessToken ----------------
-async function getAliAccessToken(): Promise<string> {
+async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    /* ---------- decide if we need to refresh ---------- */
+    /* ---- decide if we need to refresh ---- */
     const fiveMin = 5 * 60_000;
-    const exp = tokenDoc.expires_at?.getTime() ?? 0;
-    const needsRefresh = !exp || exp - Date.now() < fiveMin;
-    if (!needsRefresh || !tokenDoc.refresh_token) return tokenDoc.access_token!;
+    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
+    const expSoon = expMs === 0 || expMs - Date.now() < fiveMin;
+    const needsRefresh = forceRefresh || (tokenDoc.refresh_token && expSoon);
+    if (!needsRefresh) return tokenDoc.access_token!;
 
-    console.log("[AliExpress] Refreshing access_token…");
+    console.log("[AliExpress] Refreshing access_token …");
 
-    /* ---------- build signed body exactly like SDK ---------- */
-    const timestamp = Date.now().toString();
-    const baseParams: Record<string, string> = {
+    /* ---- build signed refresh body (SDK style) ---- */
+    const ts = Date.now().toString();
+    const p = {
       app_key: APP_KEY,
-      refresh_token: tokenDoc.refresh_token,
-      timestamp,
+      refresh_token: tokenDoc.refresh_token!,
+      timestamp: ts,
       sign_method: "sha256",
     };
-    const sign = signAliExpressRequest(
-      "/auth/token/refresh",
-      baseParams,
-      APP_SECRET
-    );
-    const body = new URLSearchParams({ ...baseParams, sign }).toString();
+    const sign = signAliExpressRequest("/auth/token/refresh", p, APP_SECRET);
+    const body = new URLSearchParams({ ...p, sign }).toString();
 
     const raw = await fetch(REFRESH_TOKEN_ENDPOINT, {
       method: "POST",
@@ -565,25 +562,26 @@ async function getAliAccessToken(): Promise<string> {
     }
     if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
 
-    /* ---------- work out the new expiry ---------- */
-    let secs: number | undefined;
-    if (data.expire_time)
-      secs = Math.floor((Number(data.expire_time) - Date.now()) / 1000);
-    else if (data.expires_in) secs = Number(data.expires_in);
-    if (!secs || secs <= 0) secs = 3600; // fallback 1 h
-    const newExpiresAt = new Date(Date.now() + secs * 1000);
+    /* ---- compute new expiry ---- */
+    let secs = data.expire_time
+      ? Math.floor((Number(data.expire_time) - Date.now()) / 1000)
+      : data.expires_in
+      ? Number(data.expires_in)
+      : 3600;
+    if (!secs || secs <= 0) secs = 3600;
+    const newExp = new Date(Date.now() + secs * 1000);
 
-    /* ---------- persist ---------- */
-    const payload: Record<string, any> = { expires_at: newExpiresAt };
-    if (data.access_token) payload.access_token = data.access_token;
-    if (data.refresh_token) payload.refresh_token = data.refresh_token;
+    /* ---- upsert ---- */
+    const update: Record<string, any> = { expires_at: newExp };
+    if (data.access_token) update.access_token = data.access_token;
+    if (data.refresh_token) update.refresh_token = data.refresh_token;
 
-    tokenDoc = await AliToken.findOneAndUpdate({}, payload, {
+    tokenDoc = await AliToken.findOneAndUpdate({}, update, {
       new: true,
       upsert: true,
     });
     console.log(
-      "[AliExpress] Token document updated, expires_at =",
+      "[AliExpress] Token refreshed; new expires_at =",
       tokenDoc.expires_at
     );
 
@@ -594,12 +592,12 @@ async function getAliAccessToken(): Promise<string> {
     throw e;
   }
 }
-// ---------------- end of helper ----------------
+/* ---------- end helper ---------- */
 
-// ---------------- start-up: always force one refresh attempt ----------------
+/* ---------- start-up: force one refresh ---------- */
 (async () => {
   await connectDB();
-  await getAliAccessToken().catch((err) =>
-    console.error("[AliExpress Init] Initial refresh attempt failed:", err)
+  await getAliAccessToken(true).catch((err) =>
+    console.error("[AliExpress Init] Forced refresh failed:", err)
   );
 })();
