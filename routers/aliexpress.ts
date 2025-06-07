@@ -539,8 +539,10 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 
     /* ---- build signed refresh body (SDK style) ---- */
     const ts = Date.now().toString();
-    const p = {
+    // ➊ include client_secret again (required, same as /auth/token/create)
+    const p: Record<string, string> = {
       app_key: APP_KEY,
+      client_secret: APP_SECRET, // <─ back again
       refresh_token: tokenDoc.refresh_token!,
       timestamp: ts,
       sign_method: "sha256",
