@@ -527,7 +527,7 @@ async function getAliAccessToken(): Promise<string> {
     // Ensure database is connected before accessing tokens
     await connectDB();
 
-    let tokenDoc = await AliToken.findOne().exec(); // Renamed to tokenDoc for clarity
+    let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc || !tokenDoc.access_token) {
       console.error(
         "[AliExpress] No token found in DB. Cannot provide access token."
@@ -537,32 +537,38 @@ async function getAliAccessToken(): Promise<string> {
 
     let needsRefresh = false;
     // For testing: if a refresh token exists, we'll try to refresh.
-    // In production, you'd also check tokenDoc.expires_at against Date.now().
     if (tokenDoc.refresh_token) {
       // This line forces the refresh attempt for testing if a refresh token is present.
-      // For production, you'd uncomment and use the expiry check:
+      // For production, you would use the expiry check:
       // const fiveMinutesInMillis = 5 * 60 * 1000;
       // if (tokenDoc.expires_at && tokenDoc.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
       //   needsRefresh = true;
       // }
       needsRefresh = true; // FORCED REFRESH FOR TESTING if refresh_token exists
+      console.log(
+        "[AliExpress] Condition met for refresh (refresh_token exists, forcing for test)."
+      );
+    } else {
+      console.log(
+        "[AliExpress] Condition for refresh not met (no refresh_token)."
+      );
     }
 
     if (needsRefresh) {
-      console.log(
-        "[AliExpress] Attempting token refresh (forced for testing or due to expiry)."
-      );
+      console.log("[AliExpress] Attempting token refresh.");
 
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
+      // Parameters for signature and body, EXCLUDING client_secret for refresh call
+      // based on simpler SDK examples for /auth/token/refresh.
       const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
-        client_secret: APP_SECRET,
-        refresh_token: tokenDoc.refresh_token!, // refresh_token is checked in the if condition
+        refresh_token: tokenDoc.refresh_token!,
         timestamp: timestamp,
         sign_method: signMethod,
       };
       const apiPath = "/auth/token/refresh";
+      // APP_SECRET (client_secret) is used here for signing, but not sent in paramsForSignatureAndBody
       const sign = signAliExpressRequest(
         apiPath,
         paramsForSignatureAndBody,
@@ -581,6 +587,10 @@ async function getAliAccessToken(): Promise<string> {
         `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
         refreshBody
       );
+      console.log(
+        `[AliExpress] Signing parameters for refresh:`,
+        paramsForSignatureAndBody
+      );
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         method: "POST",
@@ -588,6 +598,10 @@ async function getAliAccessToken(): Promise<string> {
         body: refreshBody,
       });
       const refreshResponseText = await refreshResp.text();
+      console.log(
+        "[AliExpress] Raw refresh response text:",
+        refreshResponseText
+      );
       let refreshResponseData: any;
       try {
         refreshResponseData = JSON.parse(refreshResponseText);
@@ -602,20 +616,25 @@ async function getAliAccessToken(): Promise<string> {
         );
       }
 
+      console.log(
+        "[AliExpress] Parsed refresh response data:",
+        refreshResponseData
+      );
+
       if (
         (refreshResponseData.code && refreshResponseData.code !== "0") ||
         !refreshResponseData.access_token
       ) {
         console.error(
-          "[AliExpress] Refresh token error payload:",
+          "[AliExpress] Refresh token error payload or missing access_token:",
           refreshResponseData
         );
         const specificError =
           refreshResponseData.error_description ||
-          refreshResponseData.sub_msg ||
-          refreshResponseData.msg ||
-          refreshResponseData.message ||
-          "No access_token in refresh response or error code present";
+          refreshResponseData.sub_msg || // AliExpress specific
+          refreshResponseData.msg || // AliExpress specific
+          refreshResponseData.message || // Common error field
+          `Refresh API call failed with code ${refreshResponseData.code} or access_token was null/missing.`;
         throw new Error(specificError);
       }
 
