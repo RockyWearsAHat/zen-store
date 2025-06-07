@@ -520,6 +520,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const ts = Date.now().toString();
     const base: Record<string, string> = {
       app_key: APP_KEY,
+      client_secret: APP_SECRET, // ← required by refresh action
       refresh_token: tokenDoc!.refresh_token!,
       timestamp: ts,
       sign_method: "sha256",
@@ -539,13 +540,17 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     } catch {
       throw new Error("Bad JSON from refresh");
     }
+    console.log("[AliExpress] Refresh response:", json); // debug
     if (json.code !== "0") throw new Error(`Refresh failed: ${rawRes}`);
 
     /* ---------- persist ---------- */
     const newExp = pickExpiry(json);
-    const update: Record<string, any> = { expires_at: newExp };
-    if (json.access_token) update.access_token = json.access_token;
-    if (json.refresh_token) update.refresh_token = json.refresh_token;
+    const update: Record<string, any> = {
+      expires_at: newExp,
+      // access_token | refresh_token might be null in test mode – keep old ones if so
+      access_token: json.access_token || tokenDoc!.access_token,
+      refresh_token: json.refresh_token || tokenDoc!.refresh_token,
+    };
 
     tokenDoc = await AliToken.findOneAndUpdate({}, update, {
       new: true,
