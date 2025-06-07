@@ -590,3 +590,5 @@ aliexpressRouter.use(async (_req, _res, next) => {
     console.error("[AliExpress Init] Startup refresh failed:", e);
   }
 })();
+
+export { getAliAccessToken };

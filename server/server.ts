@@ -3,6 +3,7 @@ import express from "express";
 import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
+import { getAliAccessToken } from "../routers/aliexpress"; // <- NEW
 
 // @ts-expect-error
 import { db } from "./db";
@@ -25,7 +26,7 @@ app.get("/api/health", (_req, res) => {
   return;
 });
 
-const startServer = () => {
+const startServer = async () => {
   if (process.env && process.env["VITE"]) {
     // If running in dev, just run the server from vite, vite plugin to run express is used (SEE vite.config.ts)
     return console.log("Running in dev mode");
@@ -48,6 +49,13 @@ const startServer = () => {
     //and I don't want to use a function
 
     if (process.env["NETLIFY"]) return;
+
+    try {
+      console.log("[AliExpress] Cold-start: forcing token refresh …");
+      await getAliAccessToken(true); // uses stored refresh_token
+    } catch (e) {
+      console.error("[AliExpress] Cold-start refresh failed:", e);
+    }
 
     app.listen(process.env.PORT || 4000, () => {
       console.log(
