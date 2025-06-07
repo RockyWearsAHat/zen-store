@@ -529,25 +529,36 @@ async function getAliAccessToken(): Promise<string> {
 
     let tokenDoc = await AliToken.findOne().exec(); // Renamed to tokenDoc for clarity
     if (!tokenDoc || !tokenDoc.access_token) {
-      console.error("[AliExpress] No token found in DB.");
+      console.error(
+        "[AliExpress] No token found in DB. Cannot provide access token."
+      );
       throw new Error("AliExpress not connected or token missing");
     }
 
-    // Condition to check if token needs refresh (e.g., expiring within 5 minutes)
-    // For testing, we can bypass this and force a refresh attempt if a token exists.
-    // const fiveMinutesInMillis = 5 * 60 * 1000;
-    // if (tokenDoc.expires_at && tokenDoc.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
-
-    // Forcing refresh if tokenDoc exists and has a refresh_token, as per prompt to test refresh
+    let needsRefresh = false;
+    // For testing: if a refresh token exists, we'll try to refresh.
+    // In production, you'd also check tokenDoc.expires_at against Date.now().
     if (tokenDoc.refresh_token) {
-      console.log("[AliExpress] Attempting token refresh.");
+      // This line forces the refresh attempt for testing if a refresh token is present.
+      // For production, you'd uncomment and use the expiry check:
+      // const fiveMinutesInMillis = 5 * 60 * 1000;
+      // if (tokenDoc.expires_at && tokenDoc.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
+      //   needsRefresh = true;
+      // }
+      needsRefresh = true; // FORCED REFRESH FOR TESTING if refresh_token exists
+    }
+
+    if (needsRefresh) {
+      console.log(
+        "[AliExpress] Attempting token refresh (forced for testing or due to expiry)."
+      );
 
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
       const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
         client_secret: APP_SECRET,
-        refresh_token: tokenDoc.refresh_token, // Use refresh_token from tokenDoc
+        refresh_token: tokenDoc.refresh_token!, // refresh_token is checked in the if condition
         timestamp: timestamp,
         sign_method: signMethod,
       };
@@ -605,8 +616,6 @@ async function getAliAccessToken(): Promise<string> {
           refreshResponseData.msg ||
           refreshResponseData.message ||
           "No access_token in refresh response or error code present";
-        // Consider if deleting the token is appropriate on persistent failure
-        // await AliToken.deleteOne({ _id: tokenDoc._id });
         throw new Error(specificError);
       }
 
@@ -636,29 +645,32 @@ async function getAliAccessToken(): Promise<string> {
 
       const newExpiresAt = new Date(Date.now() + newExpiresInSeconds * 1000);
 
-      // Update the token in the database using findOneAndUpdate
+      const updatePayload = {
+        access_token: refreshResponseData.access_token,
+        refresh_token:
+          refreshResponseData.refresh_token || tokenDoc.refresh_token,
+        expires_at: newExpiresAt,
+      };
+
+      // Update the single token document.
+      // Using upsert:true ensures it's created if somehow missing, or updated if present.
       const updatedToken = await AliToken.findOneAndUpdate(
-        { _id: tokenDoc._id }, // Find the existing token by its ID
-        {
-          access_token: refreshResponseData.access_token,
-          refresh_token:
-            refreshResponseData.refresh_token || tokenDoc.refresh_token, // Keep old if new one not provided
-          expires_at: newExpiresAt,
-        },
-        { new: true } // Return the updated document
+        {}, // Empty filter to target the single document
+        updatePayload,
+        { new: true, upsert: true } // Return the updated document, and upsert
       );
 
       if (!updatedToken) {
-        // This case should ideally not happen if tokenDoc was found initially
+        // This should be extremely unlikely with upsert:true
         throw new Error(
-          "[AliExpress] Failed to find and update token after refresh."
+          "[AliExpress] CRITICAL: Failed to update or upsert token after refresh."
         );
       }
 
-      tokenDoc = updatedToken; // Update local tokenDoc with the new data
+      tokenDoc = updatedToken; // Update local tokenDoc with the new data from DB
 
       console.log(
-        "[AliExpress] Token refreshed and saved successfully via findOneAndUpdate."
+        "[AliExpress] Token refreshed and saved successfully via findOneAndUpdate (upsert)."
       );
 
       if (tokenDoc.expires_at) {
@@ -806,22 +818,17 @@ export async function createAliExpressOrder(
     await connectDB();
     const token = await AliToken.findOne().exec();
 
-    if (
-      token &&
-      token.access_token &&
-      token.expires_at &&
-      token.refresh_token
-    ) {
-      // Force refresh attempt if a token with a refresh token exists
+    // If a token with a refresh_token exists, attempt to refresh it immediately.
+    // This will trigger the `needsRefresh = true` logic inside getAliAccessToken for testing.
+    if (token && token.refresh_token) {
       console.log(
-        "[AliExpress Init] Existing token found. Forcing refresh attempt."
+        "[AliExpress Init] Existing token with refresh_token found. Attempting proactive refresh."
       );
       await getAliAccessToken();
     } else if (token && token.access_token && token.expires_at) {
-      // If token exists but no refresh token, or for some other reason we don't force refresh,
-      // just schedule based on its current expiry.
+      // If token exists but no refresh_token, just schedule based on its current expiry.
       console.log(
-        "[AliExpress Init] Existing valid token found (no forced refresh). Scheduling refresh based on current expiry."
+        "[AliExpress Init] Existing token found (but no refresh_token or not forcing refresh via this path). Scheduling refresh based on current expiry."
       );
       scheduleTokenRefresh(token.expires_at);
     } else {
