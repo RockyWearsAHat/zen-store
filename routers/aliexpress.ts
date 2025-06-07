@@ -102,15 +102,24 @@ const ONE_MIN = 60_000;
 const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 
-/* ---------- pickExpiry helper ---------- */
-function pickExpiry(json: any): number /* ms timestamp */ {
-  const now = Date.now();
-  // AE only guarantees relative seconds ─ take expires_in; fall back to 24 h.
-  const rel = Number(json?.expires_in);
-  return !isNaN(rel) && rel > 0 ? now + rel * 1000 : now + ONE_DAY;
+/* ---------- helpers ---------- */
+function toMountainDate(msUtc: number): Date {
+  // Convert an epoch-ms (UTC) to a Date whose epoch is aligned with
+  // the same wall-clock time in America/Denver.
+  const str = new Date(msUtc).toLocaleString("en-US", {
+    timeZone: "America/Denver",
+    hour12: false,
+  });
+  return new Date(str);
 }
 
-/* ---------- fmtMT helper (Mountain-Time formatter) ---------- */
+function pickExpiry(json: any): Date {
+  const nowMs = Date.now();
+  const rel   = Number(json?.expires_in); // seconds
+  const targetMs = !isNaN(rel) && rel > 0 ? nowMs + rel * 1000 : nowMs + ONE_DAY;
+  return toMountainDate(targetMs);
+}
+
 function fmtMT(date: Date): string {
   return date.toLocaleString("en-US", { timeZone: "America/Denver" });
 }
@@ -385,7 +394,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     }
 
     /* ---------- OAuth callback : derive expiresAt ---------- */
-    const expiresAt = new Date(pickExpiry(responseData));
+    const expiresAt = pickExpiry(responseData);
 
     // Ensure database is connected before writing tokens
     await connectDB();
@@ -535,7 +544,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
 
     /* ---------- getAliAccessToken : compute new expiry from expires_in ---------- */
-    const newExp = new Date(pickExpiry(data));
+    const newExp = pickExpiry(data);
 
     /* ---- upsert ---- */
     const update: Record<string, any> = { expires_at: newExp };
@@ -554,15 +563,14 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     return tokenDoc.access_token!;
   } catch (e) {
     console.error("[AliExpress] getAliAccessToken error:", e);
-    throw e;
+    throw e;                                // always reject on failure
   }
-}
-/* ---------- end helper ---------- */
+}                                           // <- proper function end
 
-/* ---------- start-up : keep forced refresh ---------- */
+/* ---------- start-up : force one refresh ---------- */
 (async () => {
   await connectDB();
-  await getAliAccessToken(true).catch((err) =>
+  await getAliAccessToken(true).catch(err =>
     console.error("[AliExpress Init] Forced refresh failed:", err)
   );
 })();
