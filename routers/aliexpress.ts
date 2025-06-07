@@ -103,21 +103,11 @@ const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 
 /* ---------- helpers ---------- */
-function toMountainDate(msUtc: number): Date {
-  // Convert an epoch-ms (UTC) to a Date whose epoch is aligned with
-  // the same wall-clock time in America/Denver.
-  const str = new Date(msUtc).toLocaleString("en-US", {
-    timeZone: "America/Denver",
-    hour12: false,
-  });
-  return new Date(str);
-}
-
 function pickExpiry(json: any): Date {
   const nowMs = Date.now();
-  const rel   = Number(json?.expires_in); // seconds
-  const targetMs = !isNaN(rel) && rel > 0 ? nowMs + rel * 1000 : nowMs + ONE_DAY;
-  return toMountainDate(targetMs);
+  const rel = Number(json?.expires_in); // seconds
+  const ms = (!isNaN(rel) && rel > 0 ? rel : ONE_DAY / 1000) * 1000;
+  return new Date(nowMs + ms); // keep in UTC
 }
 
 function fmtMT(date: Date): string {
@@ -507,70 +497,77 @@ function signAliExpressRequest(
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
+
+    // always one document
     let tokenDoc = await AliToken.findOne().exec();
-    if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    /* ---- decide if we need to refresh ---- */
-    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = expMs === 0 || expMs - Date.now() < HALF_HOUR;
-    const needsRefresh = forceRefresh || (tokenDoc.refresh_token && expSoon);
-    if (!needsRefresh) return tokenDoc.access_token!;
+    /* ---------- decide if we must refresh ---------- */
+    const hasAccess = !!tokenDoc?.access_token;
+    const hasRefresh = !!tokenDoc?.refresh_token;
 
-    console.log("[AliExpress] Refreshing access_token …");
+    // when no access token but we have a refresh_token, refresh immediately
+    const expMs = tokenDoc?.expires_at?.getTime() ?? 0;
+    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
-    /* ---- build signed refresh body ---- */
+    if (!mustRefresh && hasAccess) return tokenDoc!.access_token!;
+
+    if (!hasRefresh) throw new Error("No refresh_token available to refresh.");
+
+    console.log("[AliExpress] Performing token refresh …");
+
+    /* ---------- call /auth/token/refresh ---------- */
     const ts = Date.now().toString();
-    const p: Record<string, string> = {
+    const base: Record<string, string> = {
       app_key: APP_KEY,
-      refresh_token: tokenDoc.refresh_token!, // docs: only this user-param
+      refresh_token: tokenDoc!.refresh_token!,
       timestamp: ts,
       sign_method: "sha256",
     };
-    const sign = signAliExpressRequest("/auth/token/refresh", p, APP_SECRET);
-    const body = new URLSearchParams({ ...p, sign }).toString();
+    const sign = signAliExpressRequest("/auth/token/refresh", base, APP_SECRET);
+    const body = new URLSearchParams({ ...base, sign }).toString();
 
-    const raw = await fetch(REFRESH_TOKEN_ENDPOINT, {
+    const rawRes = await fetch(REFRESH_TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     }).then((r) => r.text());
 
-    let data: any;
+    let json: any;
     try {
-      data = JSON.parse(raw);
+      json = JSON.parse(rawRes);
     } catch {
-      throw new Error(`Non-JSON refresh response: ${raw}`);
+      throw new Error("Bad JSON from refresh");
     }
-    if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
+    if (json.code !== "0") throw new Error(`Refresh failed: ${rawRes}`);
 
-    /* ---------- getAliAccessToken : compute new expiry from expires_in ---------- */
-    const newExp = pickExpiry(data);
-
-    /* ---- upsert ---- */
+    /* ---------- persist ---------- */
+    const newExp = pickExpiry(json);
     const update: Record<string, any> = { expires_at: newExp };
-    if (data.access_token) update.access_token = data.access_token;
-    if (data.refresh_token) update.refresh_token = data.refresh_token;
+    if (json.access_token) update.access_token = json.access_token;
+    if (json.refresh_token) update.refresh_token = json.refresh_token;
+
     tokenDoc = await AliToken.findOneAndUpdate({}, update, {
       new: true,
       upsert: true,
     });
     console.log(
-      "[AliExpress] Token refreshed; new expires_at =",
+      "[AliExpress] Tokens updated, next expiry:",
       tokenDoc.expires_at
     );
 
     scheduleTokenRefresh(tokenDoc.expires_at!);
     return tokenDoc.access_token!;
-  } catch (e) {
-    console.error("[AliExpress] getAliAccessToken error:", e);
-    throw e;                                // always reject on failure
+  } catch (err) {
+    console.error("[AliExpress] getAliAccessToken fatal:", err);
+    throw err;
   }
-}                                           // <- proper function end
+} // <- proper function end
 
 /* ---------- start-up : force one refresh ---------- */
 (async () => {
   await connectDB();
-  await getAliAccessToken(true).catch(err =>
+  await getAliAccessToken(true).catch((err) =>
     console.error("[AliExpress Init] Forced refresh failed:", err)
   );
 })();
