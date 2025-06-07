@@ -494,419 +494,112 @@ function signAliExpressRequest(
   return hmac.digest("hex").toUpperCase();
 }
 
-// Helper: sign AliExpress API request parameters (for /sync endpoint, general interface)
-function signAliParams(
-  params: Record<string, string>, // All request params except 'sign'
-  appSecret: string
-): string {
-  const sortedKeys = Object.keys(params).sort();
+// // Helper: sign AliExpress API request parameters (for /sync endpoint, general interface)
+// function signAliParams(
+//   params: Record<string, string>, // All request params except 'sign'
+//   appSecret: string
+// ): string {
+//   const sortedKeys = Object.keys(params).sort();
 
-  let stringToSign = "";
-  for (const key of sortedKeys) {
-    // Concatenate key and its value.
-    // Assumes params[key] is always a string and defined.
-    stringToSign += key + params[key];
-  }
+//   let stringToSign = "";
+//   for (const key of sortedKeys) {
+//     // Concatenate key and its value.
+//     // Assumes params[key] is always a string and defined.
+//     stringToSign += key + params[key];
+//   }
 
-  // console.log("[AliExpress Signature - General] String to sign:", stringToSign); // For debugging
+//   // console.log("[AliExpress Signature - General] String to sign:", stringToSign); // For debugging
 
-  const hmac = crypto.createHmac("sha256", appSecret); // Using sha256 as per sign_method
-  hmac.update(stringToSign, "utf8");
-  return hmac.digest("hex").toUpperCase();
-}
+//   const hmac = crypto.createHmac("sha256", appSecret); // Using sha256 as per sign_method
+//   hmac.update(stringToSign, "utf8");
+//   return hmac.digest("hex").toUpperCase();
+// }
 
-function toQueryString(params: Record<string, string>): string {
-  return Object.entries(params)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("&");
-}
+// function toQueryString(params: Record<string, string>): string {
+//   return Object.entries(params)
+//     .map(([k, v]) => `${k}=${v}`)
+//     .join("&");
+// }
 
-// Helper: get valid access token (refresh if needed)
+// ---------------- getAliAccessToken ----------------
 async function getAliAccessToken(): Promise<string> {
   try {
-    // Ensure database is connected before accessing tokens
     await connectDB();
-
     let tokenDoc = await AliToken.findOne().exec();
-    if (!tokenDoc || !tokenDoc.access_token) {
-      console.error(
-        "[AliExpress] No token found in DB. Cannot provide access token."
-      );
-      throw new Error("AliExpress not connected or token missing");
-    }
+    if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    let needsRefresh = false;
-    if (tokenDoc.refresh_token) {
-      // FORCED REFRESH FOR TESTING if refresh_token exists
-      needsRefresh = true;
-      // For production, use actual expiry check:
-      // const fiveMinutesInMillis = 5 * 60 * 1000;
-      // if (tokenDoc.expires_at && tokenDoc.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
-      //   needsRefresh = true;
-      // }
-      console.log(
-        `[AliExpress] Condition for refresh: ${needsRefresh} (refresh_token exists, testing mode may force it).`
-      );
-    } else {
-      console.log(
-        "[AliExpress] Condition for refresh not met (no refresh_token)."
-      );
-    }
+    /* ---------- decide if we need to refresh ---------- */
+    const fiveMin = 5 * 60_000;
+    const exp = tokenDoc.expires_at?.getTime() ?? 0;
+    const needsRefresh = !exp || exp - Date.now() < fiveMin;
+    if (!needsRefresh || !tokenDoc.refresh_token) return tokenDoc.access_token!;
 
-    if (needsRefresh) {
-      console.log("[AliExpress] Attempting token refresh.");
+    console.log("[AliExpress] Refreshing access_token…");
 
-      const timestamp = Date.now().toString();
-      const signMethod = "sha256";
-      // Parameters for signature and body for /auth/token/refresh.
-      // Based on SDK examples, client_secret is not explicitly sent as a body parameter here,
-      // but is used for signing.
-      const paramsForSignatureAndBody: Record<string, string> = {
-        app_key: APP_KEY,
-        refresh_token: tokenDoc.refresh_token!,
-        timestamp: timestamp,
-        sign_method: signMethod,
-      };
-      const apiPath = "/auth/token/refresh";
-      // APP_SECRET (client_secret) is used here for signing.
-      const sign = signAliExpressRequest(
-        apiPath,
-        paramsForSignatureAndBody,
-        APP_SECRET
-      );
-
-      const tokenPairsForRefresh: [string, string][] = [
-        ...Object.entries(paramsForSignatureAndBody),
-        ["sign", sign],
-      ];
-      const refreshBody = tokenPairsForRefresh
-        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-        .join("&");
-
-      console.log(
-        `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
-        refreshBody
-      );
-      console.log(
-        `[AliExpress] Signing parameters for refresh (excluding client_secret from body params):`,
-        paramsForSignatureAndBody
-      );
-
-      const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: refreshBody,
-      });
-      const refreshResponseText = await refreshResp.text();
-      console.log(
-        "[AliExpress] Raw refresh response text:",
-        refreshResponseText
-      );
-      let refreshResponseData: any;
-      try {
-        refreshResponseData = JSON.parse(refreshResponseText);
-      } catch (e) {
-        console.error(
-          "[AliExpress] Raw refresh token response (not JSON):",
-          refreshResponseText
-        );
-        throw new Error(
-          "AliExpress refresh token response not valid JSON: " +
-            refreshResponseText
-        );
-      }
-
-      console.log(
-        "[AliExpress] Parsed refresh response data:",
-        refreshResponseData
-      );
-
-      // Check for success code. According to docs, '0' is success.
-      // The example response shows access_token and refresh_token can be null even on success.
-      if (refreshResponseData.code && refreshResponseData.code !== "0") {
-        console.error(
-          "[AliExpress] Refresh token error payload (API error code):",
-          refreshResponseData
-        );
-        const specificError =
-          refreshResponseData.error_description ||
-          refreshResponseData.sub_msg ||
-          refreshResponseData.msg ||
-          refreshResponseData.message ||
-          `Refresh API call failed with code ${refreshResponseData.code}.`;
-        throw new Error(specificError);
-      }
-
-      // If code is "0", proceed to update expiry, even if access_token/refresh_token fields in response are null
-      console.log(
-        "[AliExpress] Refresh API call successful (code 0). Processing expiry updates."
-      );
-
-      let newExpiresInSeconds: number;
-      // Prefer expire_time (absolute ms timestamp) if available
-      if (
-        refreshResponseData.expire_time &&
-        typeof refreshResponseData.expire_time === "number"
-      ) {
-        newExpiresInSeconds = Math.floor(
-          (refreshResponseData.expire_time - Date.now()) / 1000
-        );
-        console.log(
-          `[AliExpress] Calculated expiresInSeconds from expire_time: ${newExpiresInSeconds}`
-        );
-      } else if (
-        // Fallback to expires_in (duration in seconds)
-        refreshResponseData.expires_in &&
-        (typeof refreshResponseData.expires_in === "number" ||
-          typeof refreshResponseData.expires_in === "string")
-      ) {
-        newExpiresInSeconds = parseInt(
-          String(refreshResponseData.expires_in),
-          10
-        );
-        console.log(
-          `[AliExpress] Using expires_in for expiresInSeconds: ${newExpiresInSeconds}`
-        );
-      } else {
-        // If neither is present, this is an issue with the API response for a "successful" call.
-        console.error(
-          "[AliExpress] Refresh successful (code 0) but no token expiry information (expire_time or expires_in) found in response. Cannot update token expiry.",
-          refreshResponseData
-        );
-        throw new Error(
-          "Refresh successful but no expiry information returned by API."
-        );
-      }
-
-      if (isNaN(newExpiresInSeconds) || newExpiresInSeconds <= 0) {
-        console.warn(
-          `[Aliexpress] Invalid or non-positive newExpiresInSeconds calculated: ${newExpiresInSeconds}. Defaulting to 1 hour for safety.`
-        );
-        newExpiresInSeconds = 3600; // Default to 1 hour if calculation is problematic
-      }
-
-      const newExpiresAt = new Date(Date.now() + newExpiresInSeconds * 1000);
-      console.log(
-        `[AliExpress] New calculated expires_at for access token: ${newExpiresAt.toISOString()}`
-      );
-
-      // Define a type for the update payload
-      interface TokenUpdatePayload {
-        expires_at: Date;
-        access_token?: string;
-        refresh_token?: string;
-      }
-
-      const updatePayload: TokenUpdatePayload = {
-        expires_at: newExpiresAt,
-      };
-
-      // If the API response includes a new access_token string, use it.
-      if (refreshResponseData.access_token) {
-        updatePayload.access_token = refreshResponseData.access_token;
-        console.log(
-          "[AliExpress] New access_token string provided in refresh response. Updating."
-        );
-      } else {
-        console.log(
-          "[AliExpress] No new access_token string in refresh response. Keeping existing one (if any), only updating expiry."
-        );
-      }
-
-      // If the API response includes a new refresh_token string, use it.
-      if (refreshResponseData.refresh_token) {
-        updatePayload.refresh_token = refreshResponseData.refresh_token;
-        console.log(
-          "[AliExpress] New refresh_token string provided in refresh response. Updating."
-        );
-      } else {
-        console.log(
-          "[AliExpress] No new refresh_token string in refresh response. Keeping existing one (if any)."
-        );
-      }
-
-      const updatedToken = await AliToken.findOneAndUpdate({}, updatePayload, {
-        new: true,
-        upsert: true,
-      });
-
-      if (!updatedToken) {
-        throw new Error(
-          "[AliExpress] CRITICAL: Failed to update or upsert token after refresh."
-        );
-      }
-
-      tokenDoc = updatedToken;
-
-      console.log("[AliExpress] Token expiry updated and saved successfully.");
-
-      if (tokenDoc.expires_at) {
-        scheduleTokenRefresh(tokenDoc.expires_at);
-      }
-    }
-    return tokenDoc.access_token!;
-  } catch (err: any) {
-    console.error("[AliExpress] getAliAccessToken error:", err);
-    throw err;
-  }
-}
-
-/* ---------- Place AliExpress Dropshipping Order ---------- */
-export interface AliOrderResult {
-  orderId: string;
-  trackingNumber: string;
-  orderCost: number;
-}
-
-export async function createAliExpressOrder(
-  items: { id: string; quantity: number }[],
-  shipping: any
-): Promise<AliOrderResult> {
-  try {
-    const access_token = await getAliAccessToken();
-    const timestamp = Date.now();
-    // 1. Create order (method: aliexpress.trade.ds.order.create)
-    const method = "aliexpress.trade.ds.order.create";
-    const bizParams = {
-      out_order_id: "order_" + Date.now(),
-      product_items: items.map((i) => ({
-        product_id: i.id,
-        quantity: i.quantity,
-      })),
-      address: shipping?.address,
-      contact_person: shipping?.name,
-      country_code: shipping?.country_code,
-      // ...add other required fields per API...
-    };
-    const params: Record<string, string> = {
-      method,
+    /* ---------- build signed body exactly like SDK ---------- */
+    const timestamp = Date.now().toString();
+    const baseParams: Record<string, string> = {
       app_key: APP_KEY,
-      access_token,
-      timestamp: timestamp.toString(),
+      refresh_token: tokenDoc.refresh_token,
+      timestamp,
       sign_method: "sha256",
-      param_json: JSON.stringify(bizParams),
     };
-    const sign = signAliParams(params, APP_SECRET);
-    const url = `https://api-sg.aliexpress.com/sync?${toQueryString({
-      ...params,
-      sign,
-    })}`;
-    const resp = await fetch(url, { method: "POST" });
-    const data = await resp.json();
+    const sign = signAliExpressRequest(
+      "/auth/token/refresh",
+      baseParams,
+      APP_SECRET
+    );
+    const body = new URLSearchParams({ ...baseParams, sign }).toString();
 
-    if (!data.aliexpress_trade_ds_order_create_response?.result?.order_id) {
-      throw new Error(
-        "AliExpress order creation failed: " + JSON.stringify(data)
-      );
+    const raw = await fetch(REFRESH_TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    }).then((r) => r.text());
+
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error(`Non-JSON refresh response: ${raw}`);
     }
-    const orderId =
-      data.aliexpress_trade_ds_order_create_response.result.order_id;
+    if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
 
-    // 2. Pay for order (method: aliexpress.trade.ds.order.pay)
-    const payMethod = "aliexpress.trade.ds.order.pay";
-    const payParams: Record<string, string> = {
-      method: payMethod,
-      app_key: APP_KEY,
-      access_token,
-      timestamp: Date.now().toString(),
-      sign_method: "sha256",
-      param_json: JSON.stringify({ order_id: orderId }),
-    };
-    const paySign = signAliParams(payParams, APP_SECRET);
-    const payUrl = `https://api-sg.aliexpress.com/sync?${toQueryString({
-      ...payParams,
-      sign: paySign,
-    })}`;
-    const payResp = await fetch(payUrl, { method: "POST" });
-    const payData = await payResp.json();
-    console.log("Pay response:", payData);
+    /* ---------- work out the new expiry ---------- */
+    let secs: number | undefined;
+    if (data.expire_time)
+      secs = Math.floor((Number(data.expire_time) - Date.now()) / 1000);
+    else if (data.expires_in) secs = Number(data.expires_in);
+    if (!secs || secs <= 0) secs = 3600; // fallback 1 h
+    const newExpiresAt = new Date(Date.now() + secs * 1000);
 
-    // 3. Get tracking number (method: aliexpress.logistics.ds.trackinginfo.query)
-    const trackMethod = "aliexpress.logistics.ds.trackinginfo.query";
-    const trackParams: Record<string, string> = {
-      method: trackMethod,
-      app_key: APP_KEY,
-      access_token,
-      timestamp: Date.now().toString(),
-      sign_method: "sha256",
-      param_json: JSON.stringify({ order_id: orderId }),
-    };
-    const trackSign = signAliParams(trackParams, APP_SECRET);
-    const trackUrl = `https://api-sg.aliexpress.com/sync?${toQueryString({
-      ...trackParams,
-      sign: trackSign,
-    })}`;
-    const trackResp = await fetch(trackUrl, { method: "POST" });
-    const trackData = await trackResp.json();
-    const trackingNumber =
-      trackData.aliexpress_logistics_ds_trackinginfo_query_response?.result_list
-        ?.result?.[0]?.logistics_no ?? "PENDING";
+    /* ---------- persist ---------- */
+    const payload: Record<string, any> = { expires_at: newExpiresAt };
+    if (data.access_token) payload.access_token = data.access_token;
+    if (data.refresh_token) payload.refresh_token = data.refresh_token;
 
-    // 4. Get order cost (method: aliexpress.trade.ds.order.get)
-    const getOrderMethod = "aliexpress.trade.ds.order.get";
-    const getOrderParams: Record<string, string> = {
-      method: getOrderMethod,
-      app_key: APP_KEY,
-      access_token,
-      timestamp: Date.now().toString(),
-      sign_method: "sha256",
-      param_json: JSON.stringify({ order_id: orderId }),
-    };
-    const getOrderSign = signAliParams(getOrderParams, APP_SECRET);
-    const getOrderUrl = `https://api-sg.aliexpress.com/sync?${toQueryString({
-      ...getOrderParams,
-      sign: getOrderSign,
-    })}`;
-    const getOrderResp = await fetch(getOrderUrl, { method: "POST" });
-    const getOrderData = await getOrderResp.json();
-    const orderCost =
-      Number(
-        getOrderData.aliexpress_trade_ds_order_get_response?.result
-          ?.order_amount
-      ) || 0;
-
-    return {
-      orderId,
-      trackingNumber,
-      orderCost,
-    };
-  } catch (err: any) {
-    console.error("AliExpress order error:", err);
-    throw new Error("AliExpress order failed: " + (err?.message || err));
-  }
-}
-
-// Initialization logic: Run when the module is loaded
-(async () => {
-  try {
+    tokenDoc = await AliToken.findOneAndUpdate({}, payload, {
+      new: true,
+      upsert: true,
+    });
     console.log(
-      "[AliExpress] Initializing token refresh scheduler on module load..."
+      "[AliExpress] Token document updated, expires_at =",
+      tokenDoc.expires_at
     );
-    // It's crucial to ensure DB connection is awaited before any DB operation.
-    // connectDB itself handles caching, so calling it here is fine.
-    await connectDB();
-    const token = await AliToken.findOne().exec();
 
-    if (token && token.refresh_token) {
-      console.log(
-        "[AliExpress Init] Existing token with refresh_token found. Attempting proactive refresh."
-      );
-      await getAliAccessToken();
-    } else if (token && token.access_token && token.expires_at) {
-      // If token exists but no refresh_token, just schedule based on its current expiry.
-      console.log(
-        "[AliExpress Init] Existing token found (but no refresh_token or not forcing refresh via this path). Scheduling refresh based on current expiry."
-      );
-      scheduleTokenRefresh(token.expires_at);
-    } else {
-      console.log(
-        "[AliExpress Init] No valid existing token found. Automatic refresh will not be scheduled at init."
-      );
-    }
-  } catch (error) {
-    console.error(
-      "[AliExpress Init] Error during initial token check/refresh scheduling:",
-      error
-    );
+    scheduleTokenRefresh(tokenDoc.expires_at!);
+    return tokenDoc.access_token!;
+  } catch (e) {
+    console.error("[AliExpress] getAliAccessToken error:", e);
+    throw e;
   }
+}
+// ---------------- end of helper ----------------
+
+// ---------------- start-up: always force one refresh attempt ----------------
+(async () => {
+  await connectDB();
+  await getAliAccessToken().catch((err) =>
+    console.error("[AliExpress Init] Initial refresh attempt failed:", err)
+  );
 })();

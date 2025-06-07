@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import express from "express";
 import Stripe from "stripe";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js";
-import { createAliExpressOrder } from "./aliexpress";
+// import { createAliExpressOrder } from "./aliexpress";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -36,32 +36,32 @@ router.post(
       })) as Stripe.PaymentIntent;
 
       // ---------- create AliExpress order immediately ----------
-      let aliCost = 0;
+      // let aliCost = 0;
 
       try {
-        const raw = JSON.parse(intent.metadata.items ?? "[]");
-        const itemsForAli = raw.map((i: any) => ({
-          id: i.aliId, // always use aliId
-          quantity: i.quantity,
-        }));
+        // const raw = JSON.parse(intent.metadata.items ?? "[]");
+        // const itemsForAli = raw.map((i: any) => ({
+        //   id: i.aliId, // always use aliId
+        //   quantity: i.quantity,
+        // }));
 
-        const { orderId, trackingNumber, orderCost } =
-          await createAliExpressOrder(
-            itemsForAli,
-            intent.metadata.shipping
-              ? JSON.parse(intent.metadata.shipping)
-              : null
-          );
-        aliCost = orderCost;
+        // const { orderId, trackingNumber, orderCost } =
+        // await createAliExpressOrder(
+        //   itemsForAli,
+        //   intent.metadata.shipping
+        //     ? JSON.parse(intent.metadata.shipping)
+        //     : null
+        // );
+        // aliCost = orderCost;
 
-        await stripe.paymentIntents.update(intent.id, {
-          metadata: {
-            ali_order_id: orderId,
-            ali_tracking: trackingNumber,
-            ali_cost_usd: aliCost,
-          },
-        });
-        console.log("📦 AliExpress order placed (immediate):", orderId);
+        // await stripe.paymentIntents.update(intent.id, {
+        //   metadata: {
+        //     ali_order_id: orderId,
+        //     ali_tracking: trackingNumber,
+        //     ali_cost_usd: aliCost,
+        //   },
+        // });
+        // console.log("📦 AliExpress order placed (immediate):", orderId);
 
         // Send success email with tracking number
         const charge = intent.latest_charge as Stripe.Charge | undefined;
@@ -170,37 +170,37 @@ router.post(
       }
 
       /* ---------- create AliExpress order now that funds have cleared ---------- */
-      let aliCost = 0,
-        profit = 0;
+      // let aliCost = 0,
+      // profit = 0;
       try {
-        const raw = JSON.parse(intent.metadata.items ?? "[]");
-        // Use aliId for AliExpress product id
-        const itemsForAli = raw.map((i: any) => ({
-          id: i.aliId, // always use aliId
-          quantity: i.quantity,
-        }));
+        // const raw = JSON.parse(intent.metadata.items ?? "[]");
+        // // Use aliId for AliExpress product id
+        // const itemsForAli = raw.map((i: any) => ({
+        //   id: i.aliId, // always use aliId
+        //   quantity: i.quantity,
+        // }));
 
-        const { orderId, trackingNumber, orderCost } =
-          await createAliExpressOrder(
-            itemsForAli,
-            intent.metadata.shipping
-              ? JSON.parse(intent.metadata.shipping)
-              : null
-          );
-        aliCost = orderCost;
-        const feeUsd = parseFloat(intent.metadata?.stripe_fee_usd ?? "0");
-        profit = intent.amount / 100 - feeUsd - aliCost;
+        // const { orderId, trackingNumber, orderCost } =
+        //   await createAliExpressOrder(
+        //     itemsForAli,
+        //     intent.metadata.shipping
+        //       ? JSON.parse(intent.metadata.shipping)
+        //       : null
+        //   );
+        // aliCost = orderCost;
+        // const feeUsd = parseFloat(intent.metadata?.stripe_fee_usd ?? "0");
+        // profit = intent.amount / 100 - feeUsd - aliCost;
 
-        await stripe.paymentIntents.update(piId, {
-          metadata: {
-            ali_order_id: orderId,
-            ali_tracking: trackingNumber,
-            ali_cost_usd: aliCost,
-            stripe_fee_usd: feeUsd.toFixed(2),
-            profit_usd: profit.toFixed(2),
-          },
-        });
-        console.log("📦 AliExpress order placed:", orderId);
+        // await stripe.paymentIntents.update(piId, {
+        //   metadata: {
+        //     ali_order_id: orderId,
+        //     ali_tracking: trackingNumber,
+        //     ali_cost_usd: aliCost,
+        //     stripe_fee_usd: feeUsd.toFixed(2),
+        //     profit_usd: profit.toFixed(2),
+        //   },
+        // });
+        // console.log("📦 AliExpress order placed:", orderId);
 
         // Send success email with tracking number
         const charges = (intent as any).charges?.data;
