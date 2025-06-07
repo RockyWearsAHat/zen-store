@@ -44,16 +44,6 @@ const startServer = async () => {
       // }
     });
 
-    // Try to refresh AliExpress access token on cold start
-    // This will use the stored refresh_token to get a new access_token
-    // If this fails, it will log the error but not crash the server
-    try {
-      console.log("[AliExpress] Cold-start: forcing token refresh …");
-      await getAliAccessToken(true); // uses stored refresh_token
-    } catch (e) {
-      console.error("[AliExpress] Cold-start refresh failed:", e);
-    }
-
     //If running on netlify, server is ran via lamda functions created by serverless-http,
     //so if not, start the server, stupid nested if because return can't happen here bc I'm dumb
     //and I don't want to use a function
@@ -72,9 +62,7 @@ const startServer = async () => {
       }
 
       console.log(
-        !process.env["PORT"]
-          ? "Server started on http://localhost:4000"
-          : `Server started on http://localhost:${process.env["PORT"]}`
+        !process.env["NETLIFY"] ? "Server started on http://localhost:4000" : ""
       );
     });
   }
