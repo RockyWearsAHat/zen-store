@@ -497,20 +497,20 @@ function signAliExpressRequest(
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
-
-    // always one document
     let tokenDoc = await AliToken.findOne().exec();
+    if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    /* ---------- decide if we must refresh ---------- */
-    const hasAccess = !!tokenDoc?.access_token;
-    const hasRefresh = !!tokenDoc?.refresh_token;
-
-    // when no access token but we have a refresh_token, refresh immediately
-    const expMs = tokenDoc?.expires_at?.getTime() ?? 0;
+    const hasAccess = !!tokenDoc.access_token;
+    const hasRefresh = !!tokenDoc.refresh_token;
+    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
     const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
-    if (!mustRefresh && hasAccess) return tokenDoc!.access_token!;
+    /* ---------- no refresh needed: ensure timer is armed ---------- */
+    if (!mustRefresh && hasAccess) {
+      scheduleTokenRefresh(tokenDoc.expires_at!); // <─ NEW
+      return tokenDoc.access_token!;
+    }
 
     if (!hasRefresh) throw new Error("No refresh_token available to refresh.");
 
