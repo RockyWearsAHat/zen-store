@@ -786,9 +786,9 @@ export async function createAliExpressOrder(
     const token = await AliToken.findOne().exec();
 
     if (token && token.access_token && token.expires_at) {
-      const fiveMinutesInMillis = 5 * 60 * 1000;
+      // const fiveMinutesInMillis = 5 * 60 * 1000;
       // if (token.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
-      if (Date.now() < Date.now() + fiveMinutesInMillis) {
+      if (true) {
         // Token is expired or expiring very soon
         console.log(
           "[AliExpress Init] Token expiring soon or already expired. Attempting proactive refresh."
