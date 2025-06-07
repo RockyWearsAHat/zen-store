@@ -527,44 +527,37 @@ async function getAliAccessToken(): Promise<string> {
     // Ensure database is connected before accessing tokens
     await connectDB();
 
-    let token = await AliToken.findOne().exec();
-    if (!token || !token.access_token) {
+    let tokenDoc = await AliToken.findOne().exec(); // Renamed to tokenDoc for clarity
+    if (!tokenDoc || !tokenDoc.access_token) {
       console.error("[AliExpress] No token found in DB.");
       throw new Error("AliExpress not connected or token missing");
     }
 
-    // Refresh if token is expiring in less than 5 minutes (or already expired)
-    const fiveMinutesInMillis = 5 * 60 * 1000;
-    if (
-      token.expires_at &&
-      token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
-    ) {
-      if (!token.refresh_token) {
-        throw new Error(
-          "AliExpress access token expired and refresh token missing, please re-authorize."
-        );
-      }
-      console.log(
-        "[AliExpress] Access token expired or expiring soon, attempting refresh."
-      );
+    // Condition to check if token needs refresh (e.g., expiring within 5 minutes)
+    // For testing, we can bypass this and force a refresh attempt if a token exists.
+    // const fiveMinutesInMillis = 5 * 60 * 1000;
+    // if (tokenDoc.expires_at && tokenDoc.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
+
+    // Forcing refresh if tokenDoc exists and has a refresh_token, as per prompt to test refresh
+    if (tokenDoc.refresh_token) {
+      console.log("[AliExpress] Attempting token refresh.");
 
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
       const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
         client_secret: APP_SECRET,
-        refresh_token: token.refresh_token,
+        refresh_token: tokenDoc.refresh_token, // Use refresh_token from tokenDoc
         timestamp: timestamp,
         sign_method: signMethod,
       };
-      const apiPath = "/auth/token/refresh"; // API path for this action
+      const apiPath = "/auth/token/refresh";
       const sign = signAliExpressRequest(
         apiPath,
         paramsForSignatureAndBody,
         APP_SECRET
       );
 
-      // Construct body like in /oauth/callback
       const tokenPairsForRefresh: [string, string][] = [
         ...Object.entries(paramsForSignatureAndBody),
         ["sign", sign],
@@ -575,13 +568,13 @@ async function getAliAccessToken(): Promise<string> {
 
       console.log(
         `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
-        refreshBody // Log the actual body being sent
+        refreshBody
       );
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: refreshBody, // Use the new refreshBody
+        body: refreshBody,
       });
       const refreshResponseText = await refreshResp.text();
       let refreshResponseData: any;
@@ -612,15 +605,11 @@ async function getAliAccessToken(): Promise<string> {
           refreshResponseData.msg ||
           refreshResponseData.message ||
           "No access_token in refresh response or error code present";
-        // Potentially delete the invalid token to force re-auth if refresh consistently fails
-        // await AliToken.deleteOne({ _id: token._id });
+        // Consider if deleting the token is appropriate on persistent failure
+        // await AliToken.deleteOne({ _id: tokenDoc._id });
         throw new Error(specificError);
       }
 
-      token.access_token = refreshResponseData.access_token;
-      if (refreshResponseData.refresh_token) {
-        token.refresh_token = refreshResponseData.refresh_token;
-      }
       let newExpiresInSeconds: number;
       if (
         refreshResponseData.expire_time &&
@@ -644,16 +633,39 @@ async function getAliAccessToken(): Promise<string> {
       if (isNaN(newExpiresInSeconds) || newExpiresInSeconds <= 0) {
         newExpiresInSeconds = 3600;
       }
-      token.expires_at = new Date(Date.now() + newExpiresInSeconds * 1000);
 
-      await token.save(); // Save the updated token (Mongoose document method)
-      console.log("[AliExpress] Token refreshed and saved successfully.");
+      const newExpiresAt = new Date(Date.now() + newExpiresInSeconds * 1000);
 
-      if (token.expires_at) {
-        scheduleTokenRefresh(token.expires_at); // Schedule next refresh
+      // Update the token in the database using findOneAndUpdate
+      const updatedToken = await AliToken.findOneAndUpdate(
+        { _id: tokenDoc._id }, // Find the existing token by its ID
+        {
+          access_token: refreshResponseData.access_token,
+          refresh_token:
+            refreshResponseData.refresh_token || tokenDoc.refresh_token, // Keep old if new one not provided
+          expires_at: newExpiresAt,
+        },
+        { new: true } // Return the updated document
+      );
+
+      if (!updatedToken) {
+        // This case should ideally not happen if tokenDoc was found initially
+        throw new Error(
+          "[AliExpress] Failed to find and update token after refresh."
+        );
+      }
+
+      tokenDoc = updatedToken; // Update local tokenDoc with the new data
+
+      console.log(
+        "[AliExpress] Token refreshed and saved successfully via findOneAndUpdate."
+      );
+
+      if (tokenDoc.expires_at) {
+        scheduleTokenRefresh(tokenDoc.expires_at); // Schedule next refresh
       }
     }
-    return token.access_token!;
+    return tokenDoc.access_token!;
   } catch (err: any) {
     console.error("[AliExpress] getAliAccessToken error:", err);
     throw err;
@@ -794,25 +806,24 @@ export async function createAliExpressOrder(
     await connectDB();
     const token = await AliToken.findOne().exec();
 
-    if (token && token.access_token && token.expires_at) {
-      const fiveMinutesInMillis = 5 * 60 * 1000;
-      if (token.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
-        // The user mentioned the `if(true)` was for testing,
-        // so I'm reverting to the original expiry check condition here as well.
-        // if (true) {
-        // Token is expired or expiring very soon
-        console.log(
-          "[AliExpress Init] Token expiring soon or already expired. Attempting proactive refresh."
-        );
-        // getAliAccessToken will attempt to refresh, save, and then schedule the next refresh.
-        await getAliAccessToken();
-      } else {
-        // Token is valid and not expiring imminently, schedule its refresh.
-        console.log(
-          "[AliExpress Init] Existing valid token found. Scheduling refresh."
-        );
-        scheduleTokenRefresh(token.expires_at);
-      }
+    if (
+      token &&
+      token.access_token &&
+      token.expires_at &&
+      token.refresh_token
+    ) {
+      // Force refresh attempt if a token with a refresh token exists
+      console.log(
+        "[AliExpress Init] Existing token found. Forcing refresh attempt."
+      );
+      await getAliAccessToken();
+    } else if (token && token.access_token && token.expires_at) {
+      // If token exists but no refresh token, or for some other reason we don't force refresh,
+      // just schedule based on its current expiry.
+      console.log(
+        "[AliExpress Init] Existing valid token found (no forced refresh). Scheduling refresh based on current expiry."
+      );
+      scheduleTokenRefresh(token.expires_at);
     } else {
       console.log(
         "[AliExpress Init] No valid existing token found. Automatic refresh will not be scheduled at init."
