@@ -101,6 +101,7 @@ let tokenRefreshTimeoutId: NodeJS.Timeout | null = null;
 const ONE_MIN = 60_000;
 const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
+const MAX_TIMEOUT_MS = 2_147_000_000; // < 2^31-1, ~24.8 days
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -117,33 +118,32 @@ function fmtMT(date: Date): string {
 /* ---------- scheduleTokenRefresh ---------- */
 function scheduleTokenRefresh(expiresAt: Date) {
   if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
+
   const now = Date.now();
-  let delay = expiresAt.getTime() - now - HALF_HOUR; // refresh 30 min early
+  let delay = expiresAt.getTime() - now - HALF_HOUR; // aim = 30 min early
   if (delay < 0) delay = 10_000; // already late → 10 s
 
+  // If the delay exceeds Node’s limit split it into safe chunks
+  const finalRun = delay <= MAX_TIMEOUT_MS; // will reach target in one go
+  if (!finalRun) delay = MAX_TIMEOUT_MS;
+
   console.log(
-    `[AliExpress] Scheduling token refresh in ${Math.round(
-      delay / 1000 / 60
-    )} minutes (at ${new Date(
-      now + delay
-    ).toISOString()}). Current token expires at: ${expiresAt.toISOString()}`
+    `[AliExpress] Scheduling token refresh chunk in ${Math.round(
+      delay / ONE_MIN
+    )} min (target exp ${expiresAt.toISOString()})`
   );
 
   tokenRefreshTimeoutId = setTimeout(async () => {
     try {
-      console.log(
-        "[AliExpress] Scheduled token refresh: Attempting to get/refresh token..."
-      );
-      // getAliAccessToken will handle the refresh, save, and then call scheduleTokenRefresh again
-      // with the new expiry time.
-      await getAliAccessToken();
-    } catch (error) {
-      console.error(
-        "[AliExpress] Error during scheduled token refresh:",
-        error
-      );
-      // Depending on the error, you might want to implement a retry mechanism here
-      // or rely on the application's startup/initialization logic to reschedule.
+      if (finalRun) {
+        console.log("[AliExpress] 🔄 30-min-early refresh trigger");
+        await getAliAccessToken(true); // force refresh
+      } else {
+        // Chunk elapsed, schedule next chunk until we’re within 24.8 d window
+        scheduleTokenRefresh(expiresAt);
+      }
+    } catch (err) {
+      console.error("[AliExpress] Error during scheduled refresh:", err);
     }
   }, delay);
 }
