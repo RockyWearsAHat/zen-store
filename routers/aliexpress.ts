@@ -534,11 +534,12 @@ async function getAliAccessToken(): Promise<string> {
     }
 
     // Refresh if token is expiring in less than 5 minutes (or already expired)
-    const fiveMinutesInMillis = 5 * 60 * 1000;
-    if (
-      token.expires_at &&
-      token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
-    ) {
+    // const fiveMinutesInMillis = 5 * 60 * 1000;
+    // if (
+    //   token.expires_at &&
+    //   token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
+    // ) {
+    if (true) {
       if (!token.refresh_token) {
         throw new Error(
           "AliExpress access token expired and refresh token missing, please re-authorize."
