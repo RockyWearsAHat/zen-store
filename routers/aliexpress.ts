@@ -94,6 +94,60 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
   process.env.ALI_REFRESH_TOKEN_ENDPOINT?.trim() ||
   "https://api-sg.aliexpress.com/rest/auth/token/refresh";
 
+// Global variable to store the token refresh timeout
+let tokenRefreshTimeoutId: NodeJS.Timeout | null = null;
+
+/**
+ * Schedules a proactive token refresh.
+ * @param expiresAt The Date object when the current token expires.
+ */
+function scheduleTokenRefresh(expiresAt: Date) {
+  if (tokenRefreshTimeoutId) {
+    clearTimeout(tokenRefreshTimeoutId);
+    tokenRefreshTimeoutId = null;
+  }
+
+  const now = Date.now();
+  // Set buffer to refresh 5 minutes before actual expiry
+  const refreshBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
+  let refreshDelay = expiresAt.getTime() - now - refreshBuffer;
+
+  if (refreshDelay < 0) {
+    // If the token is already past its ideal refresh point (or expired)
+    // schedule a refresh attempt very soon (e.g., in 10 seconds).
+    refreshDelay = 10000; // 10 seconds
+    console.warn(
+      `[AliExpress] Token is past ideal refresh point or expired. Scheduling refresh in 10s. Expires at: ${expiresAt.toISOString()}`
+    );
+  }
+
+  console.log(
+    `[AliExpress] Scheduling token refresh in ${Math.round(
+      refreshDelay / 1000 / 60
+    )} minutes (at ${new Date(
+      now + refreshDelay
+    ).toISOString()}). Current token expires at: ${expiresAt.toISOString()}`
+  );
+
+  tokenRefreshTimeoutId = setTimeout(async () => {
+    try {
+      console.log(
+        "[AliExpress] Scheduled token refresh: Attempting to get/refresh token..."
+      );
+      // getAliAccessToken will handle the refresh, save, and then call scheduleTokenRefresh again
+      // with the new expiry time.
+      await getAliAccessToken();
+    } catch (error) {
+      console.error(
+        "[AliExpress] Error during scheduled token refresh:",
+        error
+      );
+      // Depending on the error, you might want to implement a retry mechanism here
+      // or rely on the application's startup/initialization logic to reschedule.
+    }
+  }, refreshDelay);
+}
+
 // Step 1: Start OAuth (build authorize URL) -----------------------
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
@@ -361,7 +415,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     // Ensure database is connected before writing tokens
     await connectDB();
 
-    await AliToken.findOneAndUpdate(
+    const savedToken = await AliToken.findOneAndUpdate(
       {},
       {
         access_token: responseData.access_token,
@@ -370,6 +424,13 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       },
       { upsert: true, new: true }
     );
+
+    if (savedToken && savedToken.expires_at) {
+      console.log(
+        "[AliExpress] New token saved via OAuth, scheduling refresh."
+      );
+      scheduleTokenRefresh(savedToken.expires_at);
+    }
 
     res.send(`
       <html>
@@ -465,18 +526,22 @@ async function getAliAccessToken(): Promise<string> {
   try {
     // Ensure database is connected before accessing tokens
     await connectDB();
-    // Removed direct mongoose.connect and MONGO_URI check here, connectDB should handle it.
 
     let token = await AliToken.findOne().exec();
-    if (!token || !token.access_token)
-      throw new Error("AliExpress not connected or token missing"); // Added check for token.access_token
+    if (!token || !token.access_token) {
+      console.error("[AliExpress] No token found in DB.");
+      throw new Error("AliExpress not connected or token missing");
+    }
+
+    // Refresh if token is expiring in less than 5 minutes (or already expired)
+    const fiveMinutesInMillis = 5 * 60 * 1000;
     if (
       token.expires_at &&
-      token.expires_at.getTime() < Date.now() + 60 * 1000 // refresh if expiring in <1min
+      token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
     ) {
       if (!token.refresh_token) {
         throw new Error(
-          "AliExpress refresh token missing, please re-authorize."
+          "AliExpress access token expired and refresh token missing, please re-authorize."
         );
       }
       console.log(
@@ -485,43 +550,32 @@ async function getAliAccessToken(): Promise<string> {
 
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
-
-      // Parameters for signing and sending in the refresh request body
       const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
-        client_secret: APP_SECRET, // Required parameter for /auth/token/refresh action
+        client_secret: APP_SECRET,
         refresh_token: token.refresh_token,
         timestamp: timestamp,
         sign_method: signMethod,
       };
-
-      const apiPath = "/auth/token/refresh"; // API path for this action
+      const apiPath = "/auth/token/refresh";
       const sign = signAliExpressRequest(
         apiPath,
         paramsForSignatureAndBody,
         APP_SECRET
       );
-
       const refreshBodyParams = new URLSearchParams();
       for (const key in paramsForSignatureAndBody) {
         refreshBodyParams.append(key, paramsForSignatureAndBody[key]);
       }
       refreshBodyParams.append("sign", sign);
 
-      console.log(
-        `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
-        refreshBodyParams.toString()
-      );
-
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: refreshBodyParams.toString(),
       });
-
       const refreshResponseText = await refreshResp.text();
-      let refreshResponseData: any; // Changed from outerRefreshData
-
+      let refreshResponseData: any;
       try {
         refreshResponseData = JSON.parse(refreshResponseText);
       } catch (e) {
@@ -535,9 +589,6 @@ async function getAliAccessToken(): Promise<string> {
         );
       }
 
-      // Assuming refresh token endpoint returns direct JSON, not GOP-wrapped.
-      // Check for errors directly in refreshResponseData.
-      // Error if refreshResponseData.code is present and not "0", OR if access_token is missing.
       if (
         (refreshResponseData.code && refreshResponseData.code !== "0") ||
         !refreshResponseData.access_token
@@ -546,23 +597,21 @@ async function getAliAccessToken(): Promise<string> {
           "[AliExpress] Refresh token error payload:",
           refreshResponseData
         );
-        // Log the specific error from AliExpress if available
         const specificError =
-          refreshResponseData.error_description || // Standard OAuth
-          refreshResponseData.sub_msg || // AliExpress specific
-          refreshResponseData.msg || // AliExpress specific
-          refreshResponseData.message || // Common error field
+          refreshResponseData.error_description ||
+          refreshResponseData.sub_msg ||
+          refreshResponseData.msg ||
+          refreshResponseData.message ||
           "No access_token in refresh response or error code present";
-        await AliToken.deleteOne({ _id: token._id });
+        // Potentially delete the invalid token to force re-auth if refresh consistently fails
+        // await AliToken.deleteOne({ _id: token._id });
         throw new Error(specificError);
       }
 
-      // Successfully refreshed tokens, use refreshResponseData directly
       token.access_token = refreshResponseData.access_token;
       if (refreshResponseData.refresh_token) {
         token.refresh_token = refreshResponseData.refresh_token;
       }
-
       let newExpiresInSeconds: number;
       if (
         refreshResponseData.expire_time &&
@@ -583,16 +632,21 @@ async function getAliAccessToken(): Promise<string> {
       } else {
         newExpiresInSeconds = 3600; // Default if not provided
       }
-      if (isNaN(newExpiresInSeconds) || newExpiresInSeconds <= 0)
+      if (isNaN(newExpiresInSeconds) || newExpiresInSeconds <= 0) {
         newExpiresInSeconds = 3600;
-
+      }
       token.expires_at = new Date(Date.now() + newExpiresInSeconds * 1000);
-      await token.save();
-      console.log("[AliExpress] Token refreshed successfully.");
+
+      await token.save(); // Save the updated token (Mongoose document method)
+      console.log("[AliExpress] Token refreshed and saved successfully.");
+
+      if (token.expires_at) {
+        scheduleTokenRefresh(token.expires_at); // Schedule next refresh
+      }
     }
-    return token.access_token!; // Add non-null assertion if confident access_token exists
+    return token.access_token!;
   } catch (err: any) {
-    console.error("AliExpress token error:", err);
+    console.error("[AliExpress] getAliAccessToken error:", err);
     throw err;
   }
 }
@@ -721,3 +775,41 @@ export async function createAliExpressOrder(
     throw new Error("AliExpress order failed: " + (err?.message || err));
   }
 }
+
+// Initialization logic: Run when the module is loaded
+(async () => {
+  try {
+    console.log(
+      "[AliExpress] Initializing token refresh scheduler on module load..."
+    );
+    await connectDB();
+    const token = await AliToken.findOne().exec();
+
+    if (token && token.access_token && token.expires_at) {
+      const fiveMinutesInMillis = 5 * 60 * 1000;
+      if (token.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
+        // Token is expired or expiring very soon
+        console.log(
+          "[AliExpress Init] Token expiring soon or already expired. Attempting proactive refresh."
+        );
+        // getAliAccessToken will attempt to refresh, save, and then schedule the next refresh.
+        await getAliAccessToken();
+      } else {
+        // Token is valid and not expiring imminently, schedule its refresh.
+        console.log(
+          "[AliExpress Init] Existing valid token found. Scheduling refresh."
+        );
+        scheduleTokenRefresh(token.expires_at);
+      }
+    } else {
+      console.log(
+        "[AliExpress Init] No valid existing token found. Automatic refresh will not be scheduled at init."
+      );
+    }
+  } catch (error) {
+    console.error(
+      "[AliExpress Init] Error during initial token check/refresh scheduling:",
+      error
+    );
+  }
+})();
