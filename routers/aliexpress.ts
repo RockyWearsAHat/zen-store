@@ -534,12 +534,11 @@ async function getAliAccessToken(): Promise<string> {
     }
 
     // Refresh if token is expiring in less than 5 minutes (or already expired)
-    // const fiveMinutesInMillis = 5 * 60 * 1000;
-    // if (
-    //   token.expires_at &&
-    //   token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
-    // ) {
-    if (true) {
+    const fiveMinutesInMillis = 5 * 60 * 1000;
+    if (
+      token.expires_at &&
+      token.expires_at.getTime() < Date.now() + fiveMinutesInMillis
+    ) {
       if (!token.refresh_token) {
         throw new Error(
           "AliExpress access token expired and refresh token missing, please re-authorize."
@@ -558,22 +557,31 @@ async function getAliAccessToken(): Promise<string> {
         timestamp: timestamp,
         sign_method: signMethod,
       };
-      const apiPath = "/auth/token/refresh";
+      const apiPath = "/auth/token/refresh"; // API path for this action
       const sign = signAliExpressRequest(
         apiPath,
         paramsForSignatureAndBody,
         APP_SECRET
       );
-      const refreshBodyParams = new URLSearchParams();
-      for (const key in paramsForSignatureAndBody) {
-        refreshBodyParams.append(key, paramsForSignatureAndBody[key]);
-      }
-      refreshBodyParams.append("sign", sign);
+
+      // Construct body like in /oauth/callback
+      const tokenPairsForRefresh: [string, string][] = [
+        ...Object.entries(paramsForSignatureAndBody),
+        ["sign", sign],
+      ];
+      const refreshBody = tokenPairsForRefresh
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join("&");
+
+      console.log(
+        `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
+        refreshBody // Log the actual body being sent
+      );
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: refreshBodyParams.toString(),
+        body: refreshBody, // Use the new refreshBody
       });
       const refreshResponseText = await refreshResp.text();
       let refreshResponseData: any;
@@ -787,9 +795,11 @@ export async function createAliExpressOrder(
     const token = await AliToken.findOne().exec();
 
     if (token && token.access_token && token.expires_at) {
-      // const fiveMinutesInMillis = 5 * 60 * 1000;
-      // if (token.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
-      if (true) {
+      const fiveMinutesInMillis = 5 * 60 * 1000;
+      if (token.expires_at.getTime() < Date.now() + fiveMinutesInMillis) {
+        // The user mentioned the `if(true)` was for testing,
+        // so I'm reverting to the original expiry check condition here as well.
+        // if (true) {
         // Token is expired or expiring very soon
         console.log(
           "[AliExpress Init] Token expiring soon or already expired. Attempting proactive refresh."
