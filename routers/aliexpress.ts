@@ -583,6 +583,7 @@ aliexpressRouter.use(async (_req, _res, next) => {
 /* ---------- start-up : force exactly one refresh (cold-start) ---------- */
 (async () => {
   try {
+    console.log("[AliExpress Init] Starting up, forcing token refresh…");
     await connectDB();
     await getAliAccessToken(true); // force → uses refresh_token
   } catch (e) {
