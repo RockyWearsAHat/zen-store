@@ -570,20 +570,15 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 } // <- proper function end
 
 /* ---------- ensure-fresh token on every invocation ---------- */
-aliexpressRouter.use(async (_req, _res, next) => {
-  try {
-    // not forced: hits the network only when token near-expiry / missing
-    await getAliAccessToken();
-  } catch (e) {
-    console.error("[AliExpress] Auto-refresh failed:", e);
-  }
-  next();
-});
-
-console.log("AliExpress.ts file loaded, got to cold start token refresh.");
-console.log("[AliExpress] Cold-start: forcing token refresh …");
-getAliAccessToken(true).catch((err) => {
-  console.error("[AliExpress] Cold-start refresh failed:", err);
-}); // uses stored refresh_token
+// aliexpressRouter.use(async (_req, _res, next) => {
+//   try {
+//     // not forced: hits the network only when token near-expiry / missing
+//     await getAliAccessToken();
+//   } catch (e) {
+//     console.error("[AliExpress] Auto-refresh failed:", e);
+//   }
+//   next();
+// });
+//    ❌ removed – no per-request refresh
 
 export { getAliAccessToken };
