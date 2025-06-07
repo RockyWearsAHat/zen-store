@@ -581,11 +581,9 @@ aliexpressRouter.use(async (_req, _res, next) => {
 });
 
 console.log("AliExpress.ts file loaded, got to cold start token refresh.");
-try {
-  console.log("[AliExpress] Cold-start: forcing token refresh …");
-  await getAliAccessToken(true); // uses stored refresh_token
-} catch (e) {
-  console.error("[AliExpress] Cold-start refresh failed:", e);
-}
+console.log("[AliExpress] Cold-start: forcing token refresh …");
+getAliAccessToken(true).catch((err) => {
+  console.error("[AliExpress] Cold-start refresh failed:", err);
+}); // uses stored refresh_token
 
 export { getAliAccessToken };
