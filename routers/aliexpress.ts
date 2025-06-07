@@ -569,16 +569,14 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
   }
 } // <- proper function end
 
-/* ---------- ensure-fresh token on every invocation ---------- */
-// aliexpressRouter.use(async (_req, _res, next) => {
-//   try {
-//     // not forced: hits the network only when token near-expiry / missing
-//     await getAliAccessToken();
-//   } catch (e) {
-//     console.error("[AliExpress] Auto-refresh failed:", e);
-//   }
-//   next();
-// });
-//    ❌ removed – no per-request refresh
+aliexpressRouter.post("/redeploy", async (_, res) => {
+  // Implementation for redeploying an AliExpress product
+  console.log(
+    "[AliExpress] Redeploy request received, refreshing access token."
+  );
+  await getAliAccessToken(true);
+  res.status(200).send("Redeploy request processed.");
+  return;
+});
 
 export { getAliAccessToken };
