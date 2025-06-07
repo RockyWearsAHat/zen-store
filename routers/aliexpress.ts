@@ -558,6 +558,9 @@ async function getAliAccessToken(): Promise<string> {
 
       const timestamp = Date.now().toString();
       const signMethod = "sha256";
+      // Parameters for signature and body for /auth/token/refresh.
+      // Based on SDK examples, client_secret is not explicitly sent as a body parameter here,
+      // but is used for signing.
       const paramsForSignatureAndBody: Record<string, string> = {
         app_key: APP_KEY,
         refresh_token: tokenDoc.refresh_token!,
@@ -565,6 +568,7 @@ async function getAliAccessToken(): Promise<string> {
         sign_method: signMethod,
       };
       const apiPath = "/auth/token/refresh";
+      // APP_SECRET (client_secret) is used here for signing.
       const sign = signAliExpressRequest(
         apiPath,
         paramsForSignatureAndBody,
@@ -582,6 +586,10 @@ async function getAliAccessToken(): Promise<string> {
       console.log(
         `[AliExpress] Refresh token request to ${REFRESH_TOKEN_ENDPOINT} with body:`,
         refreshBody
+      );
+      console.log(
+        `[AliExpress] Signing parameters for refresh (excluding client_secret from body params):`,
+        paramsForSignatureAndBody
       );
 
       const refreshResp = await fetch(REFRESH_TOKEN_ENDPOINT, {
@@ -874,6 +882,8 @@ export async function createAliExpressOrder(
     console.log(
       "[AliExpress] Initializing token refresh scheduler on module load..."
     );
+    // It's crucial to ensure DB connection is awaited before any DB operation.
+    // connectDB itself handles caching, so calling it here is fine.
     await connectDB();
     const token = await AliToken.findOne().exec();
 
