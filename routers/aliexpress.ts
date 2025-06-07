@@ -145,7 +145,7 @@ function scheduleTokenRefresh(expiresAt: Date) {
     } catch (err) {
       console.error("[AliExpress] Error during scheduled refresh:", err);
     }
-  }, delay);
+  }, 10);
 }
 
 // Step 1: Start OAuth (build authorize URL) -----------------------
