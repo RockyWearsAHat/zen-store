@@ -110,6 +110,11 @@ function pickExpiry(json: any): number /* ms timestamp */ {
   return !isNaN(rel) && rel > 0 ? now + rel * 1000 : now + ONE_DAY;
 }
 
+/* ---------- fmtMT helper (Mountain-Time formatter) ---------- */
+function fmtMT(date: Date): string {
+  return date.toLocaleString("en-US", { timeZone: "America/Denver" });
+}
+
 /* ---------- scheduleTokenRefresh ---------- */
 function scheduleTokenRefresh(expiresAt: Date) {
   if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
@@ -411,7 +416,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
           <p><b>Access Token:</b> ${responseData.access_token}</p> 
           <p><b>Refresh Token:</b> ${responseData.refresh_token || "N/A"}</p>
           <p><b>User Nick:</b> ${responseData.user_nick || "N/A"}</p>
-          <p><b>Expires At:</b> ${expiresAt.toLocaleString()}</p>
+          <p><b>Expires At (MT):</b> ${fmtMT(expiresAt)}</p>
           <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
         </body>
       </html>
