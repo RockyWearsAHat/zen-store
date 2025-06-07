@@ -102,6 +102,14 @@ const ONE_MIN = 60_000;
 const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 
+/* ---------- pickExpiry helper ---------- */
+function pickExpiry(json: any): number /* ms timestamp */ {
+  const now = Date.now();
+  // AE only guarantees relative seconds ─ take expires_in; fall back to 24 h.
+  const rel = Number(json?.expires_in);
+  return !isNaN(rel) && rel > 0 ? now + rel * 1000 : now + ONE_DAY;
+}
+
 /* ---------- scheduleTokenRefresh ---------- */
 function scheduleTokenRefresh(expiresAt: Date) {
   if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
@@ -371,12 +379,8 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       return;
     }
 
-    /* ---------- OAuth callback : derive expiresInSeconds ---------- */
-    const expiresInSecondsRaw = Number(responseData.expires_in);
-    const expiresInSeconds =
-      !isNaN(expiresInSecondsRaw) && expiresInSecondsRaw > 0
-        ? expiresInSecondsRaw
-        : ONE_DAY / 1000; // fallback (24 h)
+    /* ---------- OAuth callback : derive expiresAt ---------- */
+    const expiresAt = new Date(pickExpiry(responseData));
 
     // Ensure database is connected before writing tokens
     await connectDB();
@@ -386,7 +390,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
       {
         access_token: responseData.access_token,
         refresh_token: responseData.refresh_token,
-        expires_at: new Date(Date.now() + expiresInSeconds * 1000),
+        expires_at: expiresAt,
       },
       { upsert: true, new: true }
     );
@@ -407,9 +411,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
           <p><b>Access Token:</b> ${responseData.access_token}</p> 
           <p><b>Refresh Token:</b> ${responseData.refresh_token || "N/A"}</p>
           <p><b>User Nick:</b> ${responseData.user_nick || "N/A"}</p>
-          <p><b>Expires At:</b> ${new Date(
-            Date.now() + expiresInSeconds * 1000
-          ).toLocaleString()}</p>
+          <p><b>Expires At:</b> ${expiresAt.toLocaleString()}</p>
           <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
         </body>
       </html>
@@ -528,9 +530,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     if (data.code !== "0") throw new Error(`Refresh failed: ${raw}`);
 
     /* ---------- getAliAccessToken : compute new expiry from expires_in ---------- */
-    let secs = Number(data.expires_in);
-    if (isNaN(secs) || secs <= 0) secs = ONE_DAY / 1000; // fallback 24 h
-    const newExp = new Date(Date.now() + secs * 1000);
+    const newExp = new Date(pickExpiry(data));
 
     /* ---- upsert ---- */
     const update: Record<string, any> = { expires_at: newExp };
