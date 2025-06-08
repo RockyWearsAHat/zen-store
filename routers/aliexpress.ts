@@ -428,22 +428,21 @@ function signAliExpressRequest(
 }
 
 // ---------------- getAliAccessToken ----------------
-async function getAliAccessToken(): Promise<string> {
+async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    // const hasAccess = !!tokenDoc.access_token;
-    // const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    // const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
-    // const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
-
-    // if (!mustRefresh && hasAccess) {
-    //   /* ---------- no refresh needed ---------- */
-    //   return tokenDoc.access_token!;
-    // }
-
+    const hasAccess = !!tokenDoc.access_token;
     const hasRefresh = !!tokenDoc.refresh_token;
+    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
+    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
+
+    if (!mustRefresh && hasAccess) {
+      /* ---------- no refresh needed ---------- */
+      return tokenDoc.access_token!;
+    }
 
     if (!hasRefresh) throw new Error("No refresh_token available to refresh.");
 
@@ -506,7 +505,7 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
   console.log(
     "[AliExpress] Redeploy request received, refreshing access token."
   );
-  await getAliAccessToken();
+  await getAliAccessToken(true);
   res.status(200).send("Redeploy request processed.");
   return;
 });
@@ -526,7 +525,7 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
     if (mustRefresh) {
-      await getAliAccessToken(); // force refresh
+      await getAliAccessToken(true); // force refresh
     }
 
     res.json({ ok: true });
