@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { Request, Response, NextFunction, Router } from "express";
 import { connectDB } from "../server/db"; // Ensure connectDB is imported
 import crypto from "crypto";
 import mongoose from "mongoose";
@@ -112,7 +112,7 @@ function fmtMT(date: Date): string {
 }
 
 /* ---------- Step 1: Start OAuth (build authorize URL) ----------------------- */
-aliexpressRouter.get("/oauth/start", (req, res) => {
+aliexpressRouter.get("/oauth/start", requireAliInitAllowed, (req, res) => {
   try {
     // Check for missing or empty APP_KEY
     if (!APP_KEY) {
@@ -180,219 +180,223 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
 });
 
 /* ---------- Step 2: OAuth callback, exchange code for tokens (use correct POST body) */
-aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
-  const code = req.query.code as string | undefined;
-  const returnedState = req.query.state as string | undefined; // State returned by AliExpress in query params, if any.
+aliexpressRouter.get(
+  "/oauth/callback",
+  requireAliInitAllowed,
+  async (req: Request, res: Response) => {
+    const code = req.query.code as string | undefined;
+    const returnedState = req.query.state as string | undefined; // State returned by AliExpress in query params, if any.
 
-  const expectedStateFromSession = req.session.ali_oauth_state;
+    const expectedStateFromSession = req.session.ali_oauth_state;
 
-  // Clear the state from session immediately after retrieving it
-  // to prevent reuse, regardless of what happens next.
-  if (req.session) {
-    delete req.session.ali_oauth_state;
-    // Asynchronously save the session. If this fails, log it, but proceed with OAuth logic.
-    // Critical operations should ideally await session save or handle its error more directly.
-    req.session.save((err) => {
-      if (err) {
-        console.error(
-          "[AliExpress] Error saving session after clearing state:",
-          err
-        );
-      }
-    });
-  }
+    // Clear the state from session immediately after retrieving it
+    // to prevent reuse, regardless of what happens next.
+    if (req.session) {
+      delete req.session.ali_oauth_state;
+      // Asynchronously save the session. If this fails, log it, but proceed with OAuth logic.
+      // Critical operations should ideally await session save or handle its error more directly.
+      req.session.save((err) => {
+        if (err) {
+          console.error(
+            "[AliExpress] Error saving session after clearing state:",
+            err
+          );
+        }
+      });
+    }
 
-  // 1. Check if our server had set a state for this session.
-  if (!expectedStateFromSession) {
-    console.error(
-      "[AliExpress] Session state (ali_oauth_state) missing. Possible session expiry, CSRF attempt, or cookies not enabled."
-    );
-    res
-      .status(400)
-      .send(
-        "Session state missing or expired. Please try again or ensure cookies are enabled."
-      );
-    return;
-  }
-
-  // 2. Handle the 'state' parameter returned by AliExpress (if any).
-  // Since the /oauth/start route currently does NOT send a 'state' parameter to AliExpress
-  // (based on the user-provided working URL), AliExpress should NOT return a 'state' in the callback.
-  // Thus, 'returnedState' is expected to be undefined.
-  // If AliExpress *does* return a state, and it doesn't match what we stored, it's an issue.
-  if (
-    returnedState !== undefined &&
-    returnedState !== expectedStateFromSession
-  ) {
-    console.warn(
-      `[AliExpress] State mismatch! Returned by Authorization Server: "${returnedState}", Expected from session: "${expectedStateFromSession}". This is unexpected as state was not sent to AS in the initial request.`
-    );
-    res
-      .status(400)
-      .send(
-        "Invalid state parameter returned by authorization server. Possible CSRF attempt."
-      );
-    return;
-  }
-  // If returnedState is undefined (as expected) and expectedStateFromSession is valid, the CSRF check based on state effectively passes.
-  // The core protection is that expectedStateFromSession was present and unpredictable.
-
-  if (!code) {
-    res.status(400).send("Missing authorization code");
-    return;
-  }
-  try {
-    console.log("[AliExpress] Received code:", code);
-    console.log("[AliExpress] Using APP_KEY for token exchange:", APP_KEY); // Ensure this is not empty/undefined
-    console.log(
-      "[AliExpress] Using APP_SECRET for token exchange (first 4 chars):",
-      APP_SECRET ? APP_SECRET.slice(0, 4) + "..." : "(not set)"
-    ); // Ensure this is not empty/undefined
-    console.log(
-      "[AliExpress] Using REDIRECT_URI for token exchange:",
-      REDIRECT_URI
-    );
-
-    const timestamp = Date.now().toString();
-    const signMethod = "sha256"; // This is the value for the sign_method parameter
-
-    // Parameters that will be sent in the request body (and thus need to be signed, except 'sign' itself)
-    // According to new signature docs: "Sort all request parameters (including system and application parameters,
-    // but except the “sign” and parameters with byte array type...)"
-    // This means client_secret and sign_method, if sent as parameters, should be included.
-    const paramsForSignatureAndBody: Record<string, string> = {
-      app_key: APP_KEY,
-      client_secret: APP_SECRET, // Required parameter for /auth/token/create action
-      code: code!,
-      redirect_uri: REDIRECT_URI,
-      timestamp: timestamp,
-      sign_method: signMethod, // This parameter itself is part of the signature base
-    };
-
-    const apiPath = "/auth/token/create"; // API path for this action
-    const sign = signAliExpressRequest(
-      apiPath,
-      paramsForSignatureAndBody,
-      APP_SECRET
-    );
-
-    // All parameters to be sent in the body
-    const tokenPairs: [string, string][] = [
-      ...Object.entries(paramsForSignatureAndBody),
-      ["sign", sign],
-    ];
-
-    const body = tokenPairs
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join("&");
-
-    console.log(
-      `[AliExpress] Token request to ${TOKEN_ENDPOINT} with body:`,
-      body
-    );
-
-    const resp = await fetch(TOKEN_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-
-    const responseText = await resp.text();
-    let responseData: any; // Changed from outerData
-
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
+    // 1. Check if our server had set a state for this session.
+    if (!expectedStateFromSession) {
       console.error(
-        "[AliExpress] Raw token response (not JSON):",
-        responseText
+        "[AliExpress] Session state (ali_oauth_state) missing. Possible session expiry, CSRF attempt, or cookies not enabled."
       );
+      res
+        .status(400)
+        .send(
+          "Session state missing or expired. Please try again or ensure cookies are enabled."
+        );
+      return;
+    }
+
+    // 2. Handle the 'state' parameter returned by AliExpress (if any).
+    // Since the /oauth/start route currently does NOT send a 'state' parameter to AliExpress
+    // (based on the user-provided working URL), AliExpress should NOT return a 'state' in the callback.
+    // Thus, 'returnedState' is expected to be undefined.
+    // If AliExpress *does* return a state, and it doesn't match what we stored, it's an issue.
+    if (
+      returnedState !== undefined &&
+      returnedState !== expectedStateFromSession
+    ) {
+      console.warn(
+        `[AliExpress] State mismatch! Returned by Authorization Server: "${returnedState}", Expected from session: "${expectedStateFromSession}". This is unexpected as state was not sent to AS in the initial request.`
+      );
+      res
+        .status(400)
+        .send(
+          "Invalid state parameter returned by authorization server. Possible CSRF attempt."
+        );
+      return;
+    }
+    // If returnedState is undefined (as expected) and expectedStateFromSession is valid, the CSRF check based on state effectively passes.
+    // The core protection is that expectedStateFromSession was present and unpredictable.
+
+    if (!code) {
+      res.status(400).send("Missing authorization code");
+      return;
+    }
+    try {
+      console.log("[AliExpress] Received code:", code);
+      console.log("[AliExpress] Using APP_KEY for token exchange:", APP_KEY); // Ensure this is not empty/undefined
+      console.log(
+        "[AliExpress] Using APP_SECRET for token exchange (first 4 chars):",
+        APP_SECRET ? APP_SECRET.slice(0, 4) + "..." : "(not set)"
+      ); // Ensure this is not empty/undefined
+      console.log(
+        "[AliExpress] Using REDIRECT_URI for token exchange:",
+        REDIRECT_URI
+      );
+
+      const timestamp = Date.now().toString();
+      const signMethod = "sha256"; // This is the value for the sign_method parameter
+
+      // Parameters that will be sent in the request body (and thus need to be signed, except 'sign' itself)
+      // According to new signature docs: "Sort all request parameters (including system and application parameters,
+      // but except the “sign” and parameters with byte array type...)"
+      // This means client_secret and sign_method, if sent as parameters, should be included.
+      const paramsForSignatureAndBody: Record<string, string> = {
+        app_key: APP_KEY,
+        client_secret: APP_SECRET, // Required parameter for /auth/token/create action
+        code: code!,
+        redirect_uri: REDIRECT_URI,
+        timestamp: timestamp,
+        sign_method: signMethod, // This parameter itself is part of the signature base
+      };
+
+      const apiPath = "/auth/token/create"; // API path for this action
+      const sign = signAliExpressRequest(
+        apiPath,
+        paramsForSignatureAndBody,
+        APP_SECRET
+      );
+
+      // All parameters to be sent in the body
+      const tokenPairs: [string, string][] = [
+        ...Object.entries(paramsForSignatureAndBody),
+        ["sign", sign],
+      ];
+
+      const body = tokenPairs
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join("&");
+
+      console.log(
+        `[AliExpress] Token request to ${TOKEN_ENDPOINT} with body:`,
+        body
+      );
+
+      const resp = await fetch(TOKEN_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+
+      const responseText = await resp.text();
+      let responseData: any; // Changed from outerData
+
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error(
+          "[AliExpress] Raw token response (not JSON):",
+          responseText
+        );
+        res.status(500).send(`
+          <html>
+            <head><title>AliExpress OAuth Error</title></head>
+            <body>
+              <h1>❌ AliExpress OAuth Error</h1>
+              <p>Received non-JSON response from token endpoint.</p>
+              <pre>${responseText}</pre>
+            </body>
+          </html>`);
+        return;
+      }
+
+      // Assuming token endpoints return direct JSON, not GOP-wrapped.
+      // Check for errors directly in responseData.
+      // Error if responseData.code is present and not "0", OR if access_token is missing.
+      if (
+        (responseData.code && responseData.code !== "0") ||
+        !responseData.access_token
+      ) {
+        console.error("[AliExpress] Token error payload:", responseData);
+        res.status(500).send(`
+          <html>
+            <head><title>AliExpress Token Error</title></head>
+            <body>
+              <h1>❌ AliExpress Token Error</h1>
+              <pre>${JSON.stringify(responseData, null, 2)}</pre>
+              <p>${
+                responseData.error_description || // Standard OAuth
+                responseData.sub_msg || // AliExpress specific
+                responseData.msg || // AliExpress specific
+                responseData.message || // Common error field
+                "Error in token response or no access_token returned"
+              }</p>
+            </body>
+          </html>
+        `);
+        return;
+      }
+
+      /* ---------- OAuth callback : derive expiresAt ---------- */
+      const expiresAt = pickExpiry(responseData);
+
+      // Ensure database is connected before writing tokens
+      await connectDB();
+
+      const savedToken = await AliToken.findOneAndUpdate(
+        {},
+        {
+          access_token: responseData.access_token,
+          refresh_token: responseData.refresh_token,
+          expires_at: expiresAt,
+        },
+        { upsert: true, new: true }
+      );
+
+      if (savedToken && savedToken.expires_at) {
+        console.log("[AliExpress] New token saved via OAuth.");
+      }
+
+      res.send(`
+        <html>
+          <head><title>AliExpress Connected</title></head>
+          <body>
+            <h1>✅ AliExpress Connected</h1>
+            <p>Your AliExpress account has been successfully connected.</p>
+            <p><b>Access Token:</b> ${responseData.access_token}</p> 
+            <p><b>Refresh Token:</b> ${responseData.refresh_token || "N/A"}</p>
+            <p><b>User Nick:</b> ${responseData.user_nick || "N/A"}</p>
+            <p><b>Expires At (MT):</b> ${fmtMT(expiresAt)}</p>
+            <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
+          </body>
+        </html>
+      `);
+    } catch (err: any) {
+      console.error("OAuth callback error:", err);
       res.status(500).send(`
         <html>
           <head><title>AliExpress OAuth Error</title></head>
           <body>
             <h1>❌ AliExpress OAuth Error</h1>
-            <p>Received non-JSON response from token endpoint.</p>
-            <pre>${responseText}</pre>
-          </body>
-        </html>`);
-      return;
-    }
-
-    // Assuming token endpoints return direct JSON, not GOP-wrapped.
-    // Check for errors directly in responseData.
-    // Error if responseData.code is present and not "0", OR if access_token is missing.
-    if (
-      (responseData.code && responseData.code !== "0") ||
-      !responseData.access_token
-    ) {
-      console.error("[AliExpress] Token error payload:", responseData);
-      res.status(500).send(`
-        <html>
-          <head><title>AliExpress Token Error</title></head>
-          <body>
-            <h1>❌ AliExpress Token Error</h1>
-            <pre>${JSON.stringify(responseData, null, 2)}</pre>
-            <p>${
-              responseData.error_description || // Standard OAuth
-              responseData.sub_msg || // AliExpress specific
-              responseData.msg || // AliExpress specific
-              responseData.message || // Common error field
-              "Error in token response or no access_token returned"
-            }</p>
+            <pre>${err?.message || err}</pre>
           </body>
         </html>
       `);
-      return;
     }
-
-    /* ---------- OAuth callback : derive expiresAt ---------- */
-    const expiresAt = pickExpiry(responseData);
-
-    // Ensure database is connected before writing tokens
-    await connectDB();
-
-    const savedToken = await AliToken.findOneAndUpdate(
-      {},
-      {
-        access_token: responseData.access_token,
-        refresh_token: responseData.refresh_token,
-        expires_at: expiresAt,
-      },
-      { upsert: true, new: true }
-    );
-
-    if (savedToken && savedToken.expires_at) {
-      console.log("[AliExpress] New token saved via OAuth.");
-    }
-
-    res.send(`
-      <html>
-        <head><title>AliExpress Connected</title></head>
-        <body>
-          <h1>✅ AliExpress Connected</h1>
-          <p>Your AliExpress account has been successfully connected.</p>
-          <p><b>Access Token:</b> ${responseData.access_token}</p> 
-          <p><b>Refresh Token:</b> ${responseData.refresh_token || "N/A"}</p>
-          <p><b>User Nick:</b> ${responseData.user_nick || "N/A"}</p>
-          <p><b>Expires At (MT):</b> ${fmtMT(expiresAt)}</p>
-          <p><b>Note:</b> Refresh tokens functionality might vary. If your access token expires, you may need to re-authorize.</p>
-        </body>
-      </html>
-    `);
-  } catch (err: any) {
-    console.error("OAuth callback error:", err);
-    res.status(500).send(`
-      <html>
-        <head><title>AliExpress OAuth Error</title></head>
-        <body>
-          <h1>❌ AliExpress OAuth Error</h1>
-          <pre>${err?.message || err}</pre>
-        </body>
-      </html>
-    `);
   }
-});
+);
 
 /* ────────────── AliExpress Dropshipping API Helpers ────────────── */
 
@@ -537,5 +541,22 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     return;
   }
 });
+
+const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
+
+/* ---------- guard middleware ---------- */
+function requireAliInitAllowed(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!ALI_INIT_ALLOWED) {
+    res
+      .status(403)
+      .send("AliExpress initialization is disabled on this environment.");
+    return;
+  }
+  next();
+}
 
 export { getAliAccessToken };
