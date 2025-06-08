@@ -514,7 +514,7 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 /* ---------- on-demand refresh endpoint ---------- */
 aliexpressRouter.get("/refresh", async (_req, res) => {
   try {
-    let forceRefresh = true;
+    let forceRefresh = false;
 
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
