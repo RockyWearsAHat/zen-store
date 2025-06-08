@@ -569,7 +569,7 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
   return;
 });
 
-/* ---------- on-demand refresh endpoint ---------- */
+/* ---------- on-demand refresh endpoint (bounded wait) ---------- */
 aliexpressRouter.get("/refresh", async (_req, res) => {
   try {
     let forceRefresh = false;
@@ -585,10 +585,23 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
     if (mustRefresh) {
-      await refreshOnce(); // guarded refresh
+      // already refreshing in this instance?
+      if (inFlightRefresh) {
+        // do not wait longer than 7 s
+        await Promise.race([
+          inFlightRefresh,
+          new Promise((r) => setTimeout(r, 7_000)),
+        ]);
+      } else {
+        // start a refresh but bound the wait to 7 s
+        await Promise.race([
+          refreshOnce(),
+          new Promise((r) => setTimeout(r, 7_000)),
+        ]);
+      }
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, refreshing: !!inFlightRefresh });
     return;
   } catch (err: any) {
     console.error("[AliExpress] Manual refresh failed:", err);
