@@ -430,6 +430,7 @@ function signAliExpressRequest(
 // ---------------- getAliAccessToken ----------------
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
+    await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
@@ -439,8 +440,8 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
+    /* ---------- no refresh needed ---------- */
     if (!mustRefresh && hasAccess) {
-      /* ---------- no refresh needed ---------- */
       return tokenDoc.access_token!;
     }
 
