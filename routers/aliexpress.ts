@@ -98,6 +98,8 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 const ONE_MIN = 60_000;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
+const REFRESH_TIMEOUT_MS = 8_000; // network hard-timeout
+const REFRESH_LOCK_MS = 15_000; // hold the lock for max 15 s
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -464,11 +466,16 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const sign = signAliExpressRequest("/auth/token/refresh", base, APP_SECRET);
     const body = new URLSearchParams({ ...base, sign }).toString();
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     const rawRes = await fetch(REFRESH_TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
-    }).then((r) => r.text());
+      signal: controller.signal,
+    })
+      .finally(() => clearTimeout(timer))
+      .then((r) => r.text());
 
     let json: any;
     try {
@@ -504,6 +511,54 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
   }
 } // <- proper function end
 
+/* -------- acquire a distributed (DB) lock ------------ */
+async function acquireRefreshLock(): Promise<boolean> {
+  const now = Date.now();
+  const until = new Date(now + REFRESH_LOCK_MS);
+
+  const res = await AliToken.findOneAndUpdate(
+    {
+      // lock is free when field missing OR already expired
+      $or: [
+        { refresh_lock_until: { $exists: false } },
+        { refresh_lock_until: { $lt: new Date(now) } },
+      ],
+    },
+    { refresh_lock_until: until },
+    { new: true }
+  ).exec();
+
+  return Boolean(res); // got the lock ↔ updated a doc
+}
+
+/* ---------- guarded single-refresh helper (dist-safe) ---------- */
+let inFlightRefresh: Promise<string> | null = null;
+async function refreshOnce(): Promise<string> {
+  if (inFlightRefresh) return inFlightRefresh; // same instance sharing
+
+  // try to grab DB lock – if fails someone else is already refreshing
+  if (!(await acquireRefreshLock())) {
+    console.log("[AliExpress] Another instance is already refreshing.");
+    // simply re-read latest token
+    const doc = await AliToken.findOne().exec();
+    return doc?.access_token ?? "";
+  }
+
+  inFlightRefresh = (async () => {
+    try {
+      return await getAliAccessToken(true);
+    } finally {
+      inFlightRefresh = null;
+      await AliToken.updateOne(
+        {},
+        { $unset: { refresh_lock_until: 1 } }
+      ).exec();
+    }
+  })();
+
+  return inFlightRefresh;
+}
+
 aliexpressRouter.post("/redeploy", async (_, res) => {
   // Implementation for redeploying an AliExpress product
   console.log(
@@ -530,7 +585,7 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
     if (mustRefresh) {
-      await getAliAccessToken(true); // force refresh
+      await refreshOnce(); // guarded refresh
     }
 
     res.json({ ok: true });
