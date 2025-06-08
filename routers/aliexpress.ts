@@ -101,7 +101,7 @@ let tokenRefreshTimeoutId: NodeJS.Timeout | null = null;
 const ONE_MIN = 60_000;
 const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
-const MAX_TIMEOUT_MS = 2_147_000_000; // < 2^31-1, ~24.8 days
+// const MAX_TIMEOUT_MS = 2_147_000_000; // < 2^31-1, ~24.8 days
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -116,6 +116,7 @@ function fmtMT(date: Date): string {
 }
 
 /* ---------- scheduleTokenRefresh ---------- */
+/*
 function scheduleTokenRefresh(expiresAt: Date) {
   if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
 
@@ -146,6 +147,24 @@ function scheduleTokenRefresh(expiresAt: Date) {
       }
     } catch (err) {
       console.error("[AliExpress] Error during scheduled refresh:", err);
+    }
+  }, delay);
+}
+*/
+
+/* ---------- TEST version : refresh every 5 s ---------- */
+function scheduleTokenRefresh(_expiresAt: Date) {
+  if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
+
+  const delay = 5_000; // ← 5 seconds
+  console.log("[AliExpress] TEST: scheduling refresh in 5 s");
+
+  tokenRefreshTimeoutId = setTimeout(async () => {
+    try {
+      console.log("[AliExpress] TEST: forcing refresh now");
+      await getAliAccessToken(true); // force
+    } catch (err) {
+      console.error("[AliExpress] TEST refresh failed:", err);
     }
   }, delay);
 }
