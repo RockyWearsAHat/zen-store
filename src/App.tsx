@@ -38,14 +38,7 @@ const router = createBrowserRouter([
 const App = () => {
   /* ---------- refresh token on page load if necessary ---------- */
   useEffect(() => {
-    console.log("Page reloaded, refreshing token");
-    fetch("/ali/refresh").then((res) => {
-      if (res.ok) {
-        console.log("Token refreshed successfully");
-      } else {
-        console.error("Failed to refresh token");
-      }
-    });
+    fetch("/ali/refresh");
   }, []);
 
   return <RouterProvider router={router} />;

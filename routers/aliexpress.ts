@@ -96,9 +96,8 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 
 /* ────── constants for timing ────── */
 const ONE_MIN = 60_000;
-const HALF_HOUR = 30 * ONE_MIN;
 const ONE_DAY = 24 * 60 * ONE_MIN;
-// const MAX_TIMEOUT_MS = 2_147_000_000; // < 2^31-1, ~24.8 days
+const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -437,7 +436,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const hasAccess = !!tokenDoc.access_token;
     const hasRefresh = !!tokenDoc.refresh_token;
     const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
     /* ---------- no refresh needed ---------- */
@@ -522,7 +521,8 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     const hasAccess = !!tokenDoc.access_token;
     const hasRefresh = !!tokenDoc.refresh_token;
     const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
+
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
     if (mustRefresh) {
