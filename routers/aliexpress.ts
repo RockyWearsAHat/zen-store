@@ -120,17 +120,19 @@ function scheduleTokenRefresh(expiresAt: Date) {
   if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
 
   const now = Date.now();
-  let delay = expiresAt.getTime() - now - HALF_HOUR; // aim = 30 min early
-  if (delay < 0) delay = 10_000; // already late → 10 s
+  // How long until we want to refresh (30 min before real expiry)
+  let totalUntilRefresh = expiresAt.getTime() - now - HALF_HOUR;
 
-  // If the delay exceeds Node’s limit split it into safe chunks
-  const finalRun = delay <= MAX_TIMEOUT_MS; // will reach target in one go
-  if (!finalRun) delay = MAX_TIMEOUT_MS;
+  // If already past that point, refresh shortly.
+  if (totalUntilRefresh <= 0) totalUntilRefresh = 10_000;
+
+  // First chunk (max 24.8 d).  Remaining time is handled recursively.
+  const delay = Math.min(totalUntilRefresh, MAX_TIMEOUT_MS);
+  const finalRun = delay === totalUntilRefresh; // will reach target in one go
 
   console.log(
-    `[AliExpress] Scheduling token refresh chunk in ${Math.round(
-      delay / ONE_MIN
-    )} min (target exp ${expiresAt.toISOString()})`
+    `[AliExpress] Scheduling refresh in ${Math.round(delay / ONE_MIN)} min ` +
+      `(finalRun=${finalRun}) – target ${expiresAt.toISOString()}`
   );
 
   tokenRefreshTimeoutId = setTimeout(async () => {
@@ -139,7 +141,7 @@ function scheduleTokenRefresh(expiresAt: Date) {
         console.log("[AliExpress] 🔄 30-min-early refresh trigger");
         await getAliAccessToken(true); // force refresh
       } else {
-        // Chunk elapsed, schedule next chunk until we’re within 24.8 d window
+        // Waited the big chunk – schedule the remaining tail.
         scheduleTokenRefresh(expiresAt);
       }
     } catch (err) {
