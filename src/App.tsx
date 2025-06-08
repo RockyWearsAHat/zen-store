@@ -1,4 +1,5 @@
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { useEffect } from "react";
 import Header from "./components/Header";
 import LandingPage from "./routes/LandingPage";
 import ProductPage from "./routes/ProductPage";
@@ -35,6 +36,11 @@ const router = createBrowserRouter([
 ]);
 
 const App = () => {
+  /* ---------- force token refresh on page load if necessary ---------- */
+  useEffect(() => {
+    fetch("/ali/refresh");
+  }, []);
+
   return <RouterProvider router={router} />;
 };
 

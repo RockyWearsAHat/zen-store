@@ -94,9 +94,6 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
   process.env.ALI_REFRESH_TOKEN_ENDPOINT?.trim() ||
   "https://api-sg.aliexpress.com/rest/auth/token/refresh";
 
-// Global variable to store the token refresh timeout
-let tokenRefreshTimeoutId: NodeJS.Timeout | null = null;
-
 /* ────── constants for timing ────── */
 const ONE_MIN = 60_000;
 const HALF_HOUR = 30 * ONE_MIN;
@@ -115,61 +112,7 @@ function fmtMT(date: Date): string {
   return date.toLocaleString("en-US", { timeZone: "America/Denver" });
 }
 
-/* ---------- scheduleTokenRefresh ---------- */
-/*
-function scheduleTokenRefresh(expiresAt: Date) {
-  if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
-
-  const now = Date.now();
-  // How long until we want to refresh (30 min before real expiry)
-  let totalUntilRefresh = expiresAt.getTime() - now - HALF_HOUR;
-
-  // If already past that point, refresh shortly.
-  if (totalUntilRefresh <= 0) totalUntilRefresh = 10_000;
-
-  // First chunk (max 24.8 d).  Remaining time is handled recursively.
-  const delay = Math.min(totalUntilRefresh, MAX_TIMEOUT_MS);
-  const finalRun = delay === totalUntilRefresh; // will reach target in one go
-
-  console.log(
-    `[AliExpress] Scheduling refresh in ${Math.round(delay / ONE_MIN)} min ` +
-      `(finalRun=${finalRun}) – target ${expiresAt.toISOString()}`
-  );
-
-  tokenRefreshTimeoutId = setTimeout(async () => {
-    try {
-      if (finalRun) {
-        console.log("[AliExpress] 🔄 30-min-early refresh trigger");
-        await getAliAccessToken(true); // force refresh
-      } else {
-        // Waited the big chunk – schedule the remaining tail.
-        scheduleTokenRefresh(expiresAt);
-      }
-    } catch (err) {
-      console.error("[AliExpress] Error during scheduled refresh:", err);
-    }
-  }, delay);
-}
-*/
-
-/* ---------- TEST version : refresh every 5 s ---------- */
-function scheduleTokenRefresh(_expiresAt: Date) {
-  if (tokenRefreshTimeoutId) clearTimeout(tokenRefreshTimeoutId);
-
-  const delay = 5_000; // ← 5 seconds
-  console.log("[AliExpress] TEST: scheduling refresh in 5 s");
-
-  tokenRefreshTimeoutId = setTimeout(async () => {
-    try {
-      console.log("[AliExpress] TEST: forcing refresh now");
-      await getAliAccessToken(true); // force
-    } catch (err) {
-      console.error("[AliExpress] TEST refresh failed:", err);
-    }
-  }, delay);
-}
-
-// Step 1: Start OAuth (build authorize URL) -----------------------
+/* ---------- Step 1: Start OAuth (build authorize URL) ----------------------- */
 aliexpressRouter.get("/oauth/start", (req, res) => {
   try {
     // Check for missing or empty APP_KEY
@@ -237,7 +180,7 @@ aliexpressRouter.get("/oauth/start", (req, res) => {
   }
 });
 
-// Step 2: OAuth callback, exchange code for tokens (use correct POST body)
+/* ---------- Step 2: OAuth callback, exchange code for tokens (use correct POST body) */
 aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
   const returnedState = req.query.state as string | undefined; // State returned by AliExpress in query params, if any.
@@ -421,10 +364,7 @@ aliexpressRouter.get("/oauth/callback", async (req: Request, res: Response) => {
     );
 
     if (savedToken && savedToken.expires_at) {
-      console.log(
-        "[AliExpress] New token saved via OAuth, scheduling refresh."
-      );
-      scheduleTokenRefresh(savedToken.expires_at);
+      console.log("[AliExpress] New token saved via OAuth.");
     }
 
     res.send(`
@@ -487,51 +427,23 @@ function signAliExpressRequest(
   return hmac.digest("hex").toUpperCase();
 }
 
-// // Helper: sign AliExpress API request parameters (for /sync endpoint, general interface)
-// function signAliParams(
-//   params: Record<string, string>, // All request params except 'sign'
-//   appSecret: string
-// ): string {
-//   const sortedKeys = Object.keys(params).sort();
-
-//   let stringToSign = "";
-//   for (const key of sortedKeys) {
-//     // Concatenate key and its value.
-//     // Assumes params[key] is always a string and defined.
-//     stringToSign += key + params[key];
-//   }
-
-//   // console.log("[AliExpress Signature - General] String to sign:", stringToSign); // For debugging
-
-//   const hmac = crypto.createHmac("sha256", appSecret); // Using sha256 as per sign_method
-//   hmac.update(stringToSign, "utf8");
-//   return hmac.digest("hex").toUpperCase();
-// }
-
-// function toQueryString(params: Record<string, string>): string {
-//   return Object.entries(params)
-//     .map(([k, v]) => `${k}=${v}`)
-//     .join("&");
-// }
-
 // ---------------- getAliAccessToken ----------------
-async function getAliAccessToken(forceRefresh = false): Promise<string> {
+async function getAliAccessToken(): Promise<string> {
   try {
-    await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    const hasAccess = !!tokenDoc.access_token;
-    const hasRefresh = !!tokenDoc.refresh_token;
-    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
-    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
+    // const hasAccess = !!tokenDoc.access_token;
+    // const expMs = tokenDoc.expires_at?.getTime() ?? 0;
+    // const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    // const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
-    /* ---------- no refresh needed: ensure timer is armed ---------- */
-    if (!mustRefresh && hasAccess) {
-      scheduleTokenRefresh(tokenDoc.expires_at!); // <─ NEW
-      return tokenDoc.access_token!;
-    }
+    // if (!mustRefresh && hasAccess) {
+    //   /* ---------- no refresh needed ---------- */
+    //   return tokenDoc.access_token!;
+    // }
+
+    const hasRefresh = !!tokenDoc.refresh_token;
 
     if (!hasRefresh) throw new Error("No refresh_token available to refresh.");
 
@@ -582,7 +494,6 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
       tokenDoc.expires_at
     );
 
-    scheduleTokenRefresh(tokenDoc.expires_at!);
     return tokenDoc.access_token!;
   } catch (err) {
     console.error("[AliExpress] getAliAccessToken fatal:", err);
@@ -595,9 +506,34 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
   console.log(
     "[AliExpress] Redeploy request received, refreshing access token."
   );
-  await getAliAccessToken(true);
+  await getAliAccessToken();
   res.status(200).send("Redeploy request processed.");
   return;
+});
+
+/* ---------- on-demand refresh endpoint ---------- */
+aliexpressRouter.get("/refresh", async (_req, res) => {
+  try {
+    let forceRefresh = true;
+
+    let tokenDoc = await AliToken.findOne().exec();
+    if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
+
+    const hasAccess = !!tokenDoc.access_token;
+    const hasRefresh = !!tokenDoc.refresh_token;
+    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
+    const expSoon = !expMs || expMs - Date.now() < HALF_HOUR;
+    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
+
+    if (mustRefresh) {
+      await getAliAccessToken(); // force refresh
+    }
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error("[AliExpress] Manual refresh failed:", err);
+    res.status(500).json({ ok: false, error: err?.message || err });
+  }
 });
 
 export { getAliAccessToken };
