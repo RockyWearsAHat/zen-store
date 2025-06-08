@@ -530,9 +530,11 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
     }
 
     res.json({ ok: true });
+    return;
   } catch (err: any) {
     console.error("[AliExpress] Manual refresh failed:", err);
     res.status(500).json({ ok: false, error: err?.message || err });
+    return;
   }
 });
 
