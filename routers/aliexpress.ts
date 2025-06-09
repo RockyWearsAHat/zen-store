@@ -17,8 +17,7 @@ const aliTokenSchema = new mongoose.Schema({
   access_token: String,
   refresh_token: String,
   expires_at: Date,
-  refresh_lock_until: Date, // ← add field used for distributed lock
-  last_refresh_at: Date, // ← when the last real refresh succeeded
+  last_refresh_at: Date, // ← used both for throttle & atomic lock
 });
 export const AliToken =
   mongoose.models.AliToken || mongoose.model("AliToken", aliTokenSchema);
@@ -102,11 +101,7 @@ const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
 const REFRESH_TIMEOUT_MS = 8_000; // first try
 const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
-const REFRESH_LOCK_MS = 15_000; // DB-lock-hold duration
 const THROTTLE_MS = 10_000; // ← min gap between real AliExpress calls
-const LOCAL_THROTTLE_MS = 10_000; // fallback when Mongo is down
-
-let lastLocalRefresh = 0; // process-local timestamp
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -525,7 +520,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 
     tokenDoc = await AliToken.findOneAndUpdate(
       {},
-      { ...update, last_refresh_at: new Date() }, // ← save timestamp
+      { ...update, last_refresh_at: new Date() },
       { new: true, upsert: true }
     );
     console.log(
@@ -540,94 +535,60 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
   }
 } // <- proper function end
 
-/* -------- acquire a distributed (DB) lock ------------ */
-async function acquireRefreshLock(): Promise<boolean> {
-  try {
-    await connectDB(); // ensure DB ready
-    const now = Date.now();
-    const until = new Date(now + REFRESH_LOCK_MS);
+/* ---------- acquire “lock” by atomic throttle update ---------- */
+async function tryAcquireRefreshSlot(now: number): Promise<boolean> {
+  await connectDB();
+  const threshold = new Date(now - THROTTLE_MS);
 
-    const res = await AliToken.findOneAndUpdate(
-      {
-        $or: [
-          { refresh_lock_until: { $exists: false } },
-          { refresh_lock_until: { $lt: new Date(now) } },
-        ],
-      },
-      { refresh_lock_until: until },
-      { new: true, upsert: true }
-    ).exec();
+  const res = await AliToken.findOneAndUpdate(
+    {
+      $or: [
+        { last_refresh_at: { $exists: false } },
+        { last_refresh_at: { $lt: threshold } }, // last run >10 s ago
+      ],
+    },
+    { last_refresh_at: new Date(now) }, // take the slot
+    { new: true, upsert: true }
+  ).exec();
 
-    return Boolean(res); // lock obtained
-  } catch (err) {
-    console.error(
-      "[AliExpress] Mongo unavailable:",
-      (err as Error).message || err
-    );
-    throw new Error("DB_DOWN"); // signal caller
-  }
+  return Boolean(res); // true ⇒ caller owns slot
 }
 
-/* ---------- guarded refresh (DB lock + local fallback) ---------- */
+/* ---------- single refresh (lock + throttle via last_refresh_at) ---------- */
 async function refreshOnce(): Promise<void> {
-  let haveDbLock = false;
-
-  try {
-    haveDbLock = await acquireRefreshLock();
-  } catch {
-    haveDbLock = false; // DB down
-  }
-
   const now = Date.now();
 
-  // ─── Fallback throttle when DB is not reachable ────────────────
-  if (!haveDbLock) {
-    if (now - lastLocalRefresh < LOCAL_THROTTLE_MS) return;
-    lastLocalRefresh = now;
-  }
+  // 1️⃣ read token to know if refresh is needed
+  let doc = await AliToken.findOne().exec();
+  const exp = doc?.expires_at?.getTime() ?? 0;
+  const needed = !doc?.access_token || !exp || exp - now < THREE_DAYS;
 
+  if (!needed) return;
+
+  // 2️⃣ attempt to reserve the “refresh slot”
+  const gotSlot = await tryAcquireRefreshSlot(now);
+  if (!gotSlot) return; // someone else / throttled
+
+  // 3️⃣ do the real refresh (updates last_refresh_at on success)
   try {
-    // decide if refresh is actually needed
-    let doc: any = null;
-    if (haveDbLock) {
-      doc = await AliToken.findOne().exec();
-    }
-    const expMs = doc?.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - now < THREE_DAYS;
-    const last = (doc?.last_refresh_at as Date | undefined)?.getTime() ?? 0;
-
-    const shouldRefresh =
-      (!doc?.access_token || expSoon) &&
-      now - (haveDbLock ? last : lastLocalRefresh) >= THROTTLE_MS;
-
-    if (!shouldRefresh) return;
-
     await getAliAccessToken(true);
-
-    if (haveDbLock) {
-      await AliToken.updateOne({}, { last_refresh_at: new Date() }).exec();
-    } else {
-      lastLocalRefresh = Date.now();
-    }
-  } finally {
-    if (haveDbLock) {
-      await AliToken.updateOne(
-        {},
-        { $unset: { refresh_lock_until: 1 } }
-      ).exec();
-    }
+  } catch (e) {
+    console.error("[AliExpress] refresh failed:", e);
+    // release slot on failure by rewinding timestamp 1 s back
+    await AliToken.updateOne(
+      {},
+      { last_refresh_at: new Date(now - 1_000) }
+    ).exec();
   }
 }
 
 /* ---------- /ali/refresh : fire-and-forget ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
-  res.json({ ok: true }); // respond immediately
+  res.json({ ok: true }); // instant reply
   refreshOnce().catch((e) =>
     console.error("[AliExpress] Background refresh failed:", e)
   );
 });
-
-/* ---------- remove inFlightRefresh references ---------- */
 
 aliexpressRouter.post("/redeploy", async (_, res) => {
   // Implementation for redeploying an AliExpress product
