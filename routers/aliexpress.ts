@@ -17,8 +17,8 @@ const aliTokenSchema = new mongoose.Schema({
   access_token: String,
   refresh_token: String,
   expires_at: Date,
-  last_refresh_at: Date, // last real call to Ali API
   refresh_lock_until: Date, // ← add field used for distributed lock
+  last_refresh_at: Date, // ← when the last real refresh succeeded
 });
 export const AliToken =
   mongoose.models.AliToken || mongoose.model("AliToken", aliTokenSchema);
@@ -102,8 +102,8 @@ const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
 const REFRESH_TIMEOUT_MS = 8_000; // first try
 const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
-const REFRESH_LOCK_MS = 15_000; // DB-lock
-const MIN_API_REFRESH_INTERVAL_MS = 10_000; // AliExpress: ≤1 call /10 s
+const REFRESH_LOCK_MS = 15_000; // DB-lock-hold duration
+const THROTTLE_MS = 10_000; // ← min gap between real AliExpress calls
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -449,17 +449,6 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
-    /* —— rate-limit : skip if refreshed <10 s ago —— */
-    const lastMs = tokenDoc.last_refresh_at?.getTime() ?? 0;
-    if (
-      mustRefresh &&
-      !forceRefresh &&
-      Date.now() - lastMs < MIN_API_REFRESH_INTERVAL_MS
-    ) {
-      console.log("[AliExpress] Skipping refresh – API cool-down");
-      return tokenDoc.access_token!;
-    }
-
     /* ---------- no refresh needed ---------- */
     if (!mustRefresh && hasAccess) {
       return tokenDoc.access_token!;
@@ -529,13 +518,13 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
       // access_token | refresh_token might be null in test mode – keep old ones if so
       access_token: json.access_token || tokenDoc!.access_token,
       refresh_token: json.refresh_token || tokenDoc!.refresh_token,
-      last_refresh_at: new Date(), // ← mark API call time
     };
 
-    tokenDoc = await AliToken.findOneAndUpdate({}, update, {
-      new: true,
-      upsert: true,
-    });
+    tokenDoc = await AliToken.findOneAndUpdate(
+      {},
+      { ...update, last_refresh_at: new Date() }, // ← save timestamp
+      { new: true, upsert: true }
+    );
     console.log(
       "[AliExpress] Tokens updated, next expiry:",
       tokenDoc.expires_at
@@ -569,21 +558,39 @@ async function acquireRefreshLock(): Promise<boolean> {
   return Boolean(res); // true → we hold the lock
 }
 
-/* ---------- guarded single-refresh helper (dist-safe) ---------- */
+/* ---------- guarded single-refresh helper (dist-safe & throttled) ---------- */
 let inFlightRefresh: Promise<string> | null = null;
-async function refreshOnce(force = false): Promise<string> {
+
+async function refreshOnce(): Promise<string> {
   if (inFlightRefresh) return inFlightRefresh; // same instance
 
-  // try to grab DB lock – if fails someone else is already refreshing
+  // ── take distributed lock ────────────────────────────────────────────
   if (!(await acquireRefreshLock())) {
-    console.log("[AliExpress] Another instance is already refreshing.");
-    const doc = await AliToken.findOne().exec();
+    const doc = await AliToken.findOne().exec(); // someone else
     return doc?.access_token ?? "";
   }
 
   inFlightRefresh = (async () => {
     try {
-      return await getAliAccessToken(force); // honour flag
+      const doc = await AliToken.findOne().exec();
+      if (!doc) throw new Error("Token document missing");
+
+      const now = Date.now();
+      const last = doc.last_refresh_at?.getTime() ?? 0;
+      const expMs = doc.expires_at?.getTime() ?? 0;
+      const expSoon = !expMs || expMs - now < THREE_DAYS;
+
+      // throttle: if a real refresh ran < 10 s ago, skip
+      if (!expSoon || now - last < THROTTLE_MS) {
+        return doc.access_token;
+      }
+
+      // do the actual refresh (force = true)
+      const fresh = await getAliAccessToken(true);
+
+      // record time of successful refresh
+      await AliToken.updateOne({}, { last_refresh_at: new Date() }).exec();
+      return fresh;
     } finally {
       inFlightRefresh = null;
       await AliToken.updateOne(
@@ -596,6 +603,18 @@ async function refreshOnce(force = false): Promise<string> {
   return inFlightRefresh;
 }
 
+/* ---------- /ali/refresh : instant response, background check ---------- */
+aliexpressRouter.get("/refresh", async (_req, res) => {
+  res.json({ ok: true }); // 1️⃣ immediate reply
+
+  // 2️⃣ background logic
+  if (!inFlightRefresh) {
+    refreshOnce().catch((e) =>
+      console.error("[AliExpress] Background refresh failed:", e)
+    );
+  }
+});
+
 aliexpressRouter.post("/redeploy", async (_, res) => {
   // Implementation for redeploying an AliExpress product
   console.log(
@@ -604,18 +623,6 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
   await getAliAccessToken(true);
   res.status(200).send("Redeploy request processed.");
   return;
-});
-
-/* ---------- on-demand refresh endpoint : instant 200 ---------- */
-aliexpressRouter.get("/refresh", (_req, res) => {
-  res.json({ ok: true }); // respond immediately
-
-  if (!inFlightRefresh) {
-    // kick off bg refresh if none
-    refreshOnce(false).catch((e) =>
-      console.error("[AliExpress] Background refresh failed:", e)
-    );
-  }
 });
 
 const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
