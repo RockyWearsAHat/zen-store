@@ -535,6 +535,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 
 /* -------- acquire a distributed (DB) lock ------------ */
 async function acquireRefreshLock(): Promise<boolean> {
+  await connectDB(); // ensure DB ready
   const now = Date.now();
   const until = new Date(now + REFRESH_LOCK_MS);
 
@@ -592,10 +593,11 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 
 /* ---------- on-demand refresh endpoint : instant 200 ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
-  // 1️⃣ respond instantly so the function always finishes well <10 s
+  // 1️⃣ respond instantly – prevents Netlify 502
   res.json({ ok: true });
 
-  // 2️⃣ background refresh (if none is running already)
+  // 2️⃣ always trigger background refresh (if none running);
+  //    getAliAccessToken will decide whether a real refresh is required.
   if (!inFlightRefresh) {
     refreshOnce(false).catch((e) =>
       console.error("[AliExpress] Background refresh failed:", e)
