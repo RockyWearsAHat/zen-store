@@ -17,6 +17,7 @@ const aliTokenSchema = new mongoose.Schema({
   access_token: String,
   refresh_token: String,
   expires_at: Date,
+  refresh_lock_until: Date, // ← add field used for distributed lock
 });
 export const AliToken =
   mongoose.models.AliToken || mongoose.model("AliToken", aliTokenSchema);
@@ -541,17 +542,17 @@ async function acquireRefreshLock(): Promise<boolean> {
 
   const res = await AliToken.findOneAndUpdate(
     {
-      // lock is free when field missing OR already expired
+      // get the *single* document whose lock is free OR create one
       $or: [
         { refresh_lock_until: { $exists: false } },
         { refresh_lock_until: { $lt: new Date(now) } },
       ],
     },
     { refresh_lock_until: until },
-    { new: true }
+    { new: true, upsert: true } // ← allow initial insert
   ).exec();
 
-  return Boolean(res); // got the lock ↔ updated a doc
+  return Boolean(res); // true → we hold the lock
 }
 
 /* ---------- guarded single-refresh helper (dist-safe) ---------- */
