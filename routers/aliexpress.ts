@@ -570,7 +570,8 @@ async function refreshIfNeeded(): Promise<void> {
 
   // 2️⃣ perform the real refresh only if still required
   try {
-    await getAliAccessToken(false); // rely on exp/refresh logic
+    // force a refresh just like the /redeploy route
+    await getAliAccessToken(true);
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);
     // allow another attempt after 1 s if this run failed
