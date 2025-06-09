@@ -98,8 +98,9 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 const ONE_MIN = 60_000;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
-const REFRESH_TIMEOUT_MS = 8_000; // network hard-timeout
-const REFRESH_LOCK_MS = 15_000; // hold the lock for max 15 s
+const REFRESH_TIMEOUT_MS = 8_000; // first try
+const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
+const REFRESH_LOCK_MS = 15_000; // DB-lock-hold duration
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -466,16 +467,37 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const sign = signAliExpressRequest("/auth/token/refresh", base, APP_SECRET);
     const body = new URLSearchParams({ ...base, sign }).toString();
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
-    const rawRes = await fetch(REFRESH_TOKEN_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-      signal: controller.signal,
-    })
-      .finally(() => clearTimeout(timer))
-      .then((r) => r.text());
+    const doFetch = async (timeout: number) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeout);
+      try {
+        return await fetch(REFRESH_TOKEN_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+          signal: ctrl.signal,
+        }).then((r) => r.text());
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
+    let rawRes: string;
+    try {
+      rawRes = await doFetch(REFRESH_TIMEOUT_MS);
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        console.warn("[AliExpress] Refresh timed-out, retrying once …");
+        try {
+          rawRes = await doFetch(REFRESH_TIMEOUT_MS2);
+        } catch {
+          console.error("[AliExpress] Second refresh attempt timed-out.");
+          return tokenDoc.access_token!; // keep using old token
+        }
+      } else {
+        throw e; // real failure
+      }
+    }
 
     let json: any;
     try {
