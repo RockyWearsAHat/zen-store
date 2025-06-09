@@ -535,68 +535,56 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
   }
 } // <- proper function end
 
-/* ---------- acquire “slot” by atomic throttle update (no upsert) ---------- */
-async function tryAcquireRefreshSlot(now: number): Promise<boolean> {
-  await connectDB();
-  const threshold = new Date(now - THROTTLE_MS);
+/* ---------- atomic refresh runner ---------- */
+async function refreshIfNeeded(): Promise<void> {
+  const now = Date.now();
+  const threeDaysMs = THREE_DAYS;
+  const tooOld = new Date(now - THROTTLE_MS); // >10 s ago
+  const soonExp = new Date(now + threeDaysMs); // expires ≤3 d
 
-  const res = await AliToken.findOneAndUpdate(
+  await connectDB();
+
+  // 1️⃣  reserve the run if criteria match
+  const doc = await AliToken.findOneAndUpdate(
     {
-      $or: [
-        { last_refresh_at: { $exists: false } },
-        { last_refresh_at: { $lt: threshold } },
+      $and: [
+        {
+          $or: [
+            { access_token: { $exists: false } },
+            { expires_at: { $lt: soonExp } }, // expires within 3 days
+          ],
+        },
+        {
+          $or: [
+            { last_refresh_at: { $exists: false } },
+            { last_refresh_at: { $lt: tooOld } }, // >10 s since last run
+          ],
+        },
       ],
     },
-    { last_refresh_at: new Date(now) },
-    { new: true, upsert: false } // 🚫 never create a new doc here
+    { last_refresh_at: new Date(now) }, // take the slot
+    { new: true }
   ).exec();
 
-  return Boolean(res); // true ⇒ we own the slot
-}
+  if (!doc) return; // nothing to do / throttled
 
-/* ---------- single refresh (abort if token doc missing) ---------- */
-async function refreshOnce(): Promise<void> {
-  const now = Date.now();
-
-  /* 1️⃣ fetch the only token doc */
-  const doc = await AliToken.findOne().exec();
-  if (!doc) {
-    console.warn("[AliExpress] No AliToken document found – cannot refresh.");
-    return;
-  }
-
-  const exp = doc.expires_at?.getTime() ?? 0;
-  const needed = !doc.access_token || !exp || exp - now < THREE_DAYS;
-
-  if (!needed) return;
-
-  /* 2️⃣ attempt to reserve the 10-s slot */
-  const gotSlot = await tryAcquireRefreshSlot(now);
-  if (!gotSlot) return; // someone else / throttled
-
-  /* 3️⃣ perform real refresh, store last_refresh_at on success */
+  // 2️⃣ perform the real refresh (force = true)
   try {
     await getAliAccessToken(true);
+  } catch (err) {
+    console.error("[AliExpress] refresh failed:", err);
+    // allow another attempt after 1 s if this run failed
     await AliToken.updateOne(
-      { _id: doc._id },
-      { last_refresh_at: new Date() },
-      { upsert: false } // keep single document
-    ).exec();
-  } catch (e) {
-    console.error("[AliExpress] refresh failed:", e);
-    // rollback slot so another attempt can happen
-    await AliToken.updateOne(
-      { _id: doc._id },
-      { last_refresh_at: new Date(now - 1_000) },
-      { upsert: false }
+      {},
+      { last_refresh_at: new Date(now - 1000) }
     ).exec();
   }
 }
 
 /* ---------- /ali/refresh : fire-and-forget ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
-  res.json({ ok: true }); // instant reply
-  refreshOnce().catch((e) =>
+  res.json({ ok: true }); // instant response
+  refreshIfNeeded().catch((e) =>
     console.error("[AliExpress] Background refresh failed:", e)
   );
 });
