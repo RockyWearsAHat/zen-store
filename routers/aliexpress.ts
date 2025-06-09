@@ -592,6 +592,7 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 
 /* ---------- on-demand refresh endpoint : refresh only when needed ---------- */
 aliexpressRouter.get("/refresh", async (_req, res) => {
+  //Return status immediately, so server dooesn't hang
   res.status(200);
 
   try {
