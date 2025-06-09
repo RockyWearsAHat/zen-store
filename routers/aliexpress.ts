@@ -590,16 +590,28 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
   return;
 });
 
-/* ---------- on-demand refresh endpoint (instant reply) ---------- */
-aliexpressRouter.get("/refresh", (_req, res) => {
-  // respond immediately
-  res.json({ ok: true });
+/* ---------- on-demand refresh endpoint : refresh only when needed ---------- */
+aliexpressRouter.get("/refresh", async (_req, res) => {
+  res.status(200);
 
-  // fire-and-forget background refresh (only if not already running)
-  if (!inFlightRefresh) {
-    refreshOnce(false).catch((e) =>
-      console.error("[AliExpress] Background refresh failed:", e)
-    );
+  try {
+    await connectDB();
+    const tokenDoc = await AliToken.findOne().exec();
+
+    const hasAccess = !!tokenDoc?.access_token;
+    const hasRefresh = !!tokenDoc?.refresh_token;
+    const expMs = tokenDoc?.expires_at?.getTime() ?? 0;
+    const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
+    const mustRefresh = (!hasAccess && hasRefresh) || expSoon;
+
+    // kick off background refresh only if required and not already running
+    if (mustRefresh && !inFlightRefresh) {
+      refreshOnce(false).catch((e) =>
+        console.error("[AliExpress] Background refresh failed:", e)
+      );
+    }
+  } catch (err: any) {
+    console.error("[AliExpress] Manual refresh failed:", err);
   }
 });
 
