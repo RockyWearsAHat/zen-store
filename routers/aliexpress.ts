@@ -17,6 +17,7 @@ const aliTokenSchema = new mongoose.Schema({
   access_token: String,
   refresh_token: String,
   expires_at: Date,
+  last_refresh_at: Date, // last real call to Ali API
   refresh_lock_until: Date, // ← add field used for distributed lock
 });
 export const AliToken =
@@ -101,7 +102,8 @@ const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
 const REFRESH_TIMEOUT_MS = 8_000; // first try
 const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
-const REFRESH_LOCK_MS = 15_000; // DB-lock-hold duration
+const REFRESH_LOCK_MS = 15_000; // DB-lock
+const MIN_API_REFRESH_INTERVAL_MS = 10_000; // AliExpress: ≤1 call /10 s
 
 /* ---------- helpers ---------- */
 function pickExpiry(json: any): Date {
@@ -447,6 +449,17 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
     const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
 
+    /* —— rate-limit : skip if refreshed <10 s ago —— */
+    const lastMs = tokenDoc.last_refresh_at?.getTime() ?? 0;
+    if (
+      mustRefresh &&
+      !forceRefresh &&
+      Date.now() - lastMs < MIN_API_REFRESH_INTERVAL_MS
+    ) {
+      console.log("[AliExpress] Skipping refresh – API cool-down");
+      return tokenDoc.access_token!;
+    }
+
     /* ---------- no refresh needed ---------- */
     if (!mustRefresh && hasAccess) {
       return tokenDoc.access_token!;
@@ -516,6 +529,7 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
       // access_token | refresh_token might be null in test mode – keep old ones if so
       access_token: json.access_token || tokenDoc!.access_token,
       refresh_token: json.refresh_token || tokenDoc!.refresh_token,
+      last_refresh_at: new Date(), // ← mark API call time
     };
 
     tokenDoc = await AliToken.findOneAndUpdate({}, update, {
@@ -594,12 +608,10 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 
 /* ---------- on-demand refresh endpoint : instant 200 ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
-  // 1️⃣ respond instantly – prevents Netlify 502
-  res.json({ ok: true });
+  res.json({ ok: true }); // respond immediately
 
-  // 2️⃣ always trigger background refresh (if none running);
-  //    getAliAccessToken will decide whether a real refresh is required.
   if (!inFlightRefresh) {
+    // kick off bg refresh if none
     refreshOnce(false).catch((e) =>
       console.error("[AliExpress] Background refresh failed:", e)
     );
