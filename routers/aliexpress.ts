@@ -592,9 +592,6 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 
 /* ---------- on-demand refresh endpoint : refresh only when needed ---------- */
 aliexpressRouter.get("/refresh", async (_req, res) => {
-  //Return status immediately, so server dooesn't hang
-  res.status(200);
-
   try {
     await connectDB();
     const tokenDoc = await AliToken.findOne().exec();
@@ -610,9 +607,11 @@ aliexpressRouter.get("/refresh", async (_req, res) => {
       refreshOnce(false).catch((e) =>
         console.error("[AliExpress] Background refresh failed:", e)
       );
+      res.json({ ok: true, refreshing: mustRefresh });
     }
   } catch (err: any) {
     console.error("[AliExpress] Manual refresh failed:", err);
+    res.status(500).json({ ok: false, error: err?.message || err });
   }
 });
 
