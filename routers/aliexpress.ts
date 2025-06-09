@@ -568,9 +568,9 @@ async function refreshIfNeeded(): Promise<void> {
 
   if (!doc) return; // nothing to do / throttled
 
-  // 2️⃣ perform the real refresh (force = true)
+  // 2️⃣ perform the real refresh only if still required
   try {
-    await getAliAccessToken(true);
+    await getAliAccessToken(false); // rely on exp/refresh logic
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);
     // allow another attempt after 1 s if this run failed
