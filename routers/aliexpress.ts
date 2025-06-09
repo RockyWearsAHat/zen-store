@@ -555,20 +555,19 @@ async function acquireRefreshLock(): Promise<boolean> {
 
 /* ---------- guarded single-refresh helper (dist-safe) ---------- */
 let inFlightRefresh: Promise<string> | null = null;
-async function refreshOnce(): Promise<string> {
-  if (inFlightRefresh) return inFlightRefresh; // same instance sharing
+async function refreshOnce(force = false): Promise<string> {
+  if (inFlightRefresh) return inFlightRefresh; // same instance
 
   // try to grab DB lock – if fails someone else is already refreshing
   if (!(await acquireRefreshLock())) {
     console.log("[AliExpress] Another instance is already refreshing.");
-    // simply re-read latest token
     const doc = await AliToken.findOne().exec();
     return doc?.access_token ?? "";
   }
 
   inFlightRefresh = (async () => {
     try {
-      return await getAliAccessToken(true);
+      return await getAliAccessToken(force); // honour flag
     } finally {
       inFlightRefresh = null;
       await AliToken.updateOne(
@@ -592,33 +591,15 @@ aliexpressRouter.post("/redeploy", async (_, res) => {
 });
 
 /* ---------- on-demand refresh endpoint (instant reply) ---------- */
-aliexpressRouter.get("/refresh", async (_req, res) => {
-  try {
-    let forceRefresh = false;
+aliexpressRouter.get("/refresh", (_req, res) => {
+  // respond immediately
+  res.json({ ok: true });
 
-    let tokenDoc = await AliToken.findOne().exec();
-    if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
-
-    const hasAccess = !!tokenDoc.access_token;
-    const hasRefresh = !!tokenDoc.refresh_token;
-    const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
-
-    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
-
-    if (mustRefresh && !inFlightRefresh) {
-      // Kick-off refresh in the background; don’t await
-      refreshOnce().catch((e) =>
-        console.error("[AliExpress] Background refresh failed:", e)
-      );
-    }
-
-    res.json({ ok: true, refreshing: mustRefresh });
-    return;
-  } catch (err: any) {
-    console.error("[AliExpress] Manual refresh failed:", err);
-    res.status(500).json({ ok: false, error: err?.message || err });
-    return;
+  // fire-and-forget background refresh (only if not already running)
+  if (!inFlightRefresh) {
+    refreshOnce(false).catch((e) =>
+      console.error("[AliExpress] Background refresh failed:", e)
+    );
   }
 });
 
