@@ -558,62 +558,40 @@ async function acquireRefreshLock(): Promise<boolean> {
   return Boolean(res); // true → we hold the lock
 }
 
-/* ---------- guarded single-refresh helper (dist-safe & throttled) ---------- */
-let inFlightRefresh: Promise<string> | null = null;
+/* ---------- guarded single-refresh helper (DB-lock & throttle only) ---------- */
+async function refreshOnce(): Promise<void> {
+  if (!(await acquireRefreshLock())) return; // someone else
 
-async function refreshOnce(): Promise<string> {
-  if (inFlightRefresh) return inFlightRefresh; // same instance
+  try {
+    const doc = await AliToken.findOne().exec();
+    if (!doc) return;
 
-  // ── take distributed lock ────────────────────────────────────────────
-  if (!(await acquireRefreshLock())) {
-    const doc = await AliToken.findOne().exec(); // someone else
-    return doc?.access_token ?? "";
+    const now = Date.now();
+    const last = doc.last_refresh_at?.getTime() ?? 0;
+    const exp = doc.expires_at?.getTime() ?? 0;
+    const expSoon = !exp || exp - now < THREE_DAYS;
+
+    // throttle real AliExpress calls
+    if (!expSoon || now - last < THROTTLE_MS) return;
+
+    await getAliAccessToken(true); // ← real refresh
+    await AliToken.updateOne({}, { last_refresh_at: new Date() }).exec();
+  } finally {
+    await AliToken.updateOne({}, { $unset: { refresh_lock_until: 1 } }).exec();
   }
-
-  inFlightRefresh = (async () => {
-    try {
-      const doc = await AliToken.findOne().exec();
-      if (!doc) throw new Error("Token document missing");
-
-      const now = Date.now();
-      const last = doc.last_refresh_at?.getTime() ?? 0;
-      const expMs = doc.expires_at?.getTime() ?? 0;
-      const expSoon = !expMs || expMs - now < THREE_DAYS;
-
-      // throttle: if a real refresh ran < 10 s ago, skip
-      if (!expSoon || now - last < THROTTLE_MS) {
-        return doc.access_token;
-      }
-
-      // do the actual refresh (force = true)
-      const fresh = await getAliAccessToken(true);
-
-      // record time of successful refresh
-      await AliToken.updateOne({}, { last_refresh_at: new Date() }).exec();
-      return fresh;
-    } finally {
-      inFlightRefresh = null;
-      await AliToken.updateOne(
-        {},
-        { $unset: { refresh_lock_until: 1 } }
-      ).exec();
-    }
-  })();
-
-  return inFlightRefresh;
 }
 
-/* ---------- /ali/refresh : instant response, background check ---------- */
+/* ---------- /ali/refresh : fire-and-forget background refresh ---------- */
 aliexpressRouter.get("/refresh", async (_req, res) => {
-  res.json({ ok: true }); // 1️⃣ immediate reply
+  res.json({ ok: true }); // instant response
 
-  // 2️⃣ background logic
-  if (!inFlightRefresh) {
-    refreshOnce().catch((e) =>
-      console.error("[AliExpress] Background refresh failed:", e)
-    );
-  }
+  // background work (does nothing if no refresh needed or throttled)
+  refreshOnce().catch((e) =>
+    console.error("[AliExpress] Background refresh failed:", e)
+  );
 });
+
+/* ---------- remove inFlightRefresh references ---------- */
 
 aliexpressRouter.post("/redeploy", async (_, res) => {
   // Implementation for redeploying an AliExpress product
