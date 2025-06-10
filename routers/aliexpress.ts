@@ -99,8 +99,8 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 const ONE_MIN = 60_000;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
-const REFRESH_TIMEOUT_MS = 8_000; // first try
-const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
+// const REFRESH_TIMEOUT_MS = 8_000; // first try
+// const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
 const THROTTLE_MS = 10_000; // ← min gap between real AliExpress calls
 
 /* ---------- helpers ---------- */
@@ -434,11 +434,11 @@ function signAliExpressRequest(
   return hmac.digest("hex").toUpperCase();
 }
 
-/* -------------------- getAliAccessToken (extra logs) -------------------- */
+/* -------------------- getAliAccessToken (extra logs + simpler fetch) -------------------- */
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
-    let tokenDoc: any = await AliToken.findOne().exec(); // typed as any
+    let tokenDoc: any = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
     const now = Date.now();
@@ -463,58 +463,50 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 
     console.log("[AliExpress] Refreshing token via /auth/token/refresh …");
 
-    /* ---------- call /auth/token/refresh ---------- */
+    /* ---------- build request ---------- */
     const ts = Date.now().toString();
     const base: Record<string, string> = {
       app_key: APP_KEY,
-      client_secret: APP_SECRET, // ← required by refresh action
-      refresh_token: tokenDoc!.refresh_token!,
+      client_secret: APP_SECRET,
+      refresh_token: tokenDoc.refresh_token,
       timestamp: ts,
       sign_method: "sha256",
     };
     const sign = signAliExpressRequest("/auth/token/refresh", base, APP_SECRET);
     const body = new URLSearchParams({ ...base, sign }).toString();
 
-    const doFetch = async (timeout: number) => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), timeout);
-      try {
-        return await fetch(REFRESH_TOKEN_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body,
-          signal: ctrl.signal,
-        }).then((r) => r.text());
-      } finally {
-        clearTimeout(t);
-      }
-    };
+    console.log("[AliExpress] → POST", REFRESH_TOKEN_ENDPOINT);
+    console.log("[AliExpress] → BODY", body);
 
+    /* ---------- perform request (no artificial timeout) ---------- */
     let rawRes: string;
     try {
-      rawRes = await doFetch(REFRESH_TIMEOUT_MS);
+      const resp = await fetch(REFRESH_TOKEN_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+      rawRes = await resp.text();
     } catch (e: any) {
-      if (e?.name === "AbortError") {
-        console.warn("[AliExpress] Refresh timed-out, retrying once …");
-        try {
-          rawRes = await doFetch(REFRESH_TIMEOUT_MS2);
-        } catch {
-          console.error("[AliExpress] Second refresh attempt timed-out.");
-          return tokenDoc.access_token!; // keep using old token
-        }
-      } else {
-        throw e; // real failure
-      }
+      console.error("[AliExpress] Network error while refreshing:", e);
+      throw new Error("NETWORK_FAIL");
     }
 
+    console.log("[AliExpress] ← RAW", rawRes.slice(0, 500));
+
+    /* ---------- parse & validate ---------- */
     let json: any;
     try {
       json = JSON.parse(rawRes);
     } catch {
-      throw new Error("Bad JSON from refresh");
+      console.error("[AliExpress] Non-JSON refresh response.");
+      throw new Error("BAD_JSON");
     }
-    console.log("[AliExpress] Refresh response:", json); // debug
-    if (json.code !== "0") throw new Error(`Refresh failed: ${rawRes}`);
+
+    if (json.code !== "0" || !json.access_token) {
+      console.error("[AliExpress] Refresh error payload:", json);
+      throw new Error("REFRESH_REJECTED");
+    }
 
     /* ---------- persist ---------- */
     const newExp = pickExpiry(json);
