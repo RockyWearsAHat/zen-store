@@ -82,10 +82,31 @@ interface ShippingInfo {
   };
 }
 
-/* ─── UPS helper – returns last checkpoint as { label, marker } ─── */
-async function getUPSLocation(
-  trk: string
-): Promise<{ label: string; marker: string } | null> {
+/* ------------------------------------------------------------------ */
+/*  UPS                                                               */
+/* ------------------------------------------------------------------ */
+
+export async function getUPSLocation(trackingNumber: string): Promise<{
+  lat?: number;
+  lng?: number;
+  status?: string;
+  label?: string;
+  marker?: any;
+} | null> {
+  /* ---------- TEST shortcut ---------- */
+  if (
+    process.env.ALI_TEST_ENVIRONMENT === "true" ||
+    trackingNumber.startsWith("TEST-")
+  ) {
+    return {
+      lat: 40.6461,
+      lng: -111.498,
+      status: "Test-mode shipment",
+      label: "TEST",
+      marker: null,
+    };
+  }
+
   const id = process.env.UPS_CLIENT_ID;
   const secret = process.env.UPS_CLIENT_SECRET;
   if (!id || !secret) return null;
@@ -112,11 +133,11 @@ async function getUPSLocation(
       `https://${
         // !process.env["VITE"] ? `onlinetools` : `wwwcie`
         "wwwcie"
-      }.ups.com/api/track/v1/details/${trk}`,
+      }.ups.com/api/track/v1/details/${trackingNumber}`,
       {
         headers: {
           Authorization: `Bearer ${access_token}`,
-          transId: trk,
+          transId: trackingNumber,
           transactionSrc: "ZenEssentials",
         },
       }

@@ -432,21 +432,14 @@ export async function createAliExpressOrder(
 
   if (!items?.length) throw new Error("createAliExpressOrder: empty items[]");
 
-  const accessToken = await getAliAccessToken(); // existing helper
+  const accessToken = await getAliAccessToken();
 
-  /* ---------- TEST-MODE BYPASS ---------- */
-  if (process.env.ALI_TEST_ENVIRONMENT === "true") {
-    const fakeOrderId = `TEST-${outOrderId ?? Date.now()}`;
-    console.log("[AliExpress] (TEST) returning fake order:", fakeOrderId);
-    return { orderId: fakeOrderId, trackingNumber: "TEST-TRACK", orderCost: 0 };
-  }
-
-  /* ---------- AliExpress TOP parameters (MUST match for sign) ---------- */
+  /* ---------- AliExpress TOP parameters ---------- */
   const sysParams: Record<string, string> = {
     app_key: APP_KEY,
     method: "aliexpress.ds.order.create",
     access_token: accessToken,
-    timestamp: Date.now().toString(), // ← epoch-ms, NOT formatted date
+    timestamp: Date.now().toString(), // epoch-ms
     sign_method: "sha256",
     v: "2.0",
   };
@@ -457,14 +450,21 @@ export async function createAliExpressOrder(
     logistics_address: shipping,
     product_items: items.map((i) => ({
       product_id: Number(i.id),
-      product_count: i.quantity,
+      product_count:
+        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity, // ← 0 in test
       sku_attr: i.sku_attr ?? "",
       logistics_service_name: "",
       order_memo: " ",
     })),
   };
 
-  const dsExtendRequest = { payment: { pay_currency: "USD" } };
+  const dsExtendRequest = {
+    payment: {
+      pay_currency: "USD",
+      try_to_pay:
+        process.env.ALI_TEST_ENVIRONMENT === "true" ? "false" : "true",
+    }, // in test mode prevent payment
+  };
 
   const apiPath = "/sync";
   const allParamsForSign = {
