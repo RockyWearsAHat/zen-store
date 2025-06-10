@@ -12,17 +12,55 @@ router.post(
   "/",
   express.raw({ type: "*/*" }),
   async (req: Request, res: Response): Promise<void> => {
-    const sig = req.headers["stripe-signature"] as string;
-    let event: Stripe.Event;
+    /* ---------- prepare payload & secret ---------- */
+    const endpointSecret = (process.env.STRIPE_WEBHOOK_SECRET || "").trim();
+    if (!endpointSecret) {
+      console.error("[Stripe] STRIPE_WEBHOOK_SECRET env var missing");
+      res.status(500).send("Server mis-configuration");
+      return;
+    }
 
+    // Prefer the Buffer created by express.raw(); fall back to any upstream rawBody
+    let payload: Buffer | string = req.body as any;
+    if (!Buffer.isBuffer(payload) && typeof payload !== "string") {
+      if ((req as any).rawBody) {
+        payload = (req as any).rawBody;
+      } else {
+        // Last resort – stringify mutated body (will likely still fail)
+        payload = Buffer.from(JSON.stringify(req.body));
+      }
+    }
+
+    const sigHeader = Array.isArray(req.headers["stripe-signature"])
+      ? (req.headers["stripe-signature"] as string[])[0]
+      : (req.headers["stripe-signature"] as string | undefined);
+
+    if (!sigHeader) {
+      console.error("[Stripe] Missing Stripe-Signature header");
+      res.status(400).send("Missing Stripe-Signature");
+      return;
+    }
+
+    let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET || ""
+        payload,
+        sigHeader,
+        endpointSecret
       );
     } catch (err: any) {
-      console.error("Webhook signature verification failed.", err.message);
+      // Add detailed diagnostics once, then respond 400
+      console.error(
+        "[Stripe] Webhook verification failed:",
+        err?.message ?? err
+      );
+      console.error(
+        `[Stripe] payloadType=${
+          Buffer.isBuffer(payload) ? "Buffer" : typeof payload
+        } length=${
+          Buffer.isBuffer(payload) ? payload.length : (payload as string).length
+        }`
+      );
       res.status(400).send(`Webhook Error: ${err.message}`);
       return;
     }
