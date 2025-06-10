@@ -7,7 +7,7 @@ import { stripeWebhookRouter } from "../routers/stripeWebhook";
 export const app = express();
 
 // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
-app.use("/api/webhook", stripeWebhookRouter);
+app.use("/api/webhook", express.raw(), stripeWebhookRouter);
 
 /* ── 2️⃣  normal body parsers for the rest ── */
 app.use(express.json());

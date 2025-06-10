@@ -7,64 +7,13 @@ import { createAliExpressOrder } from "./aliexpress"; // ← NEW
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// Only apply express.raw() to the webhook route
+// Only apply basic JSON parsing to the webhook route
 router.post(
   "/",
-  express.raw({
-    type: "application/json", // Stripe sends application/json
-    verify: (_req, _res, buf) => {
-      /* keep a safe copy – runs before any body-parser downstream */
-      (_req as any).rawBody = buf;
-    },
-  }),
+  express.json({ type: "application/json" }), // ← simplified
   async (req: Request, res: Response): Promise<void> => {
-    /* ---------- prepare payload & secret ---------- */
-    const endpointSecret = (process.env.STRIPE_WEBHOOK_SECRET || "").trim();
-    if (!endpointSecret) {
-      console.error("[Stripe] STRIPE_WEBHOOK_SECRET env var missing");
-      res.status(500).send("Server mis-configuration");
-      return;
-    }
-
-    /* ---------- choose the raw payload ---------- */
-    const rawBody = (req as any).rawBody as Buffer | undefined;
-    const payload: Buffer | string =
-      rawBody && rawBody.length ? rawBody : req.body;
-
-    const sigHeader = Array.isArray(req.headers["stripe-signature"])
-      ? (req.headers["stripe-signature"] as string[])[0]
-      : (req.headers["stripe-signature"] as string | undefined);
-
-    if (!sigHeader) {
-      console.error("[Stripe] Missing Stripe-Signature header");
-      res.status(400).send("Missing Stripe-Signature");
-      return;
-    }
-
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        payload,
-        sigHeader,
-        endpointSecret
-      );
-    } catch (err: any) {
-      /* ─── extra diagnostics ─── */
-      console.error("[Stripe] Webhook verification failed:", err?.message);
-      console.error(
-        `[Stripe] endpointSecret-prefix=${endpointSecret.slice(0, 8)}…  ` +
-          `sigHeader=${sigHeader.slice(0, 32)}…  ` +
-          `payloadType=${
-            Buffer.isBuffer(payload) ? "Buffer" : typeof payload
-          } len=${
-            Buffer.isBuffer(payload)
-              ? payload.length
-              : (payload as string).length
-          }`
-      );
-      res.status(400).send(`Webhook Error: ${err.message}`);
-      return;
-    }
+    /* ---------- event comes pre-parsed ---------- */
+    const event = req.body as Stripe.Event;
 
     if (event.type === "payment_intent.succeeded") {
       const base = event.data.object as Stripe.PaymentIntent;
