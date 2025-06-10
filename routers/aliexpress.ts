@@ -606,15 +606,15 @@ function signAliExpressRequest(
   let queryString = "";
   for (const k of sortedKeys) queryString += k + params[k];
 
-  /* TOP spec: prefix & suffix secret for system-level (/sync) APIs */
-  const base =
+  // TOP spec (system-level “/sync”): prefix secret, no suffix
+  const stringToSign =
     apiPath === "/sync"
-      ? appSecret + apiPath + queryString + appSecret
-      : apiPath + queryString; // OAuth keeps the “new” rule
+      ? appSecret + apiPath + queryString
+      : apiPath + queryString; // OAuth path keeps “new” rule
 
   return crypto
     .createHmac("sha256", appSecret)
-    .update(base, "utf8")
+    .update(stringToSign, "utf8")
     .digest("hex")
     .toUpperCase();
 }
