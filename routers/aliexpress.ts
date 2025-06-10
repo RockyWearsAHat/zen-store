@@ -400,6 +400,171 @@ aliexpressRouter.get(
   }
 );
 
+/* ──────────────────────────────────────────────────────────────── *
+ *  AliExpress Dropshipping – PLACE ORDER & TRACKING HELPERS       *
+ * ──────────────────────────────────────────────────────────────── */
+
+const LIVE_BASE_URL = "https://api-sg.aliexpress.com";
+const TEST_BASE_URL = "https://api-sg.aliexpress.com"; // ← put sandbox URL if different
+const ALI_BASE_URL =
+  process.env.ALI_TEST_ENVIRONMENT === "true" ? TEST_BASE_URL : LIVE_BASE_URL;
+
+/* ---------- createAliExpressOrder ----------------------------------------- */
+export interface AliItem {
+  id: string | number;
+  quantity: number;
+  sku_attr?: string; // optional, default ""
+}
+
+export async function createAliExpressOrder(
+  items: AliItem[],
+  shipping: any, // expects { address, city, country, province, mobile_no, zip, ... }
+  outOrderId?: string
+): Promise<{
+  orderId: string;
+  trackingNumber: string | null;
+  orderCost: number | null;
+}> {
+  console.log("[AliExpress] createAliExpressOrder called", {
+    items,
+    outOrderId,
+  });
+
+  if (!items?.length) throw new Error("createAliExpressOrder: empty items[]");
+
+  const accessToken = await getAliAccessToken(); // existing helper
+
+  /* ---------- build params exactly as docs describe ---------- */
+  const placeOrderDTO = {
+    out_order_id: outOrderId ?? `od-${Date.now()}`,
+    logistics_address: shipping,
+    product_items: items.map((i) => ({
+      product_id: Number(i.id),
+      product_count:
+        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+      sku_attr: i.sku_attr ?? "",
+      logistics_service_name: "Zen Essentials",
+      order_memo: " ",
+    })),
+  };
+
+  const dsExtendRequest = {
+    payment: { pay_currency: "USD" },
+    promotion: { promotion_code: "" },
+  };
+
+  /* ---------- system params ---------- */
+  const timestamp = Date.now().toString();
+  const method = "aliexpress.ds.order.create";
+  const sysParams: Record<string, string> = {
+    app_key: APP_KEY,
+    method,
+    sign_method: "sha256",
+    timestamp,
+    access_token: accessToken,
+  };
+
+  const apiPath = "/sync"; // TOP system interface
+  const paramsForSign = {
+    ...sysParams,
+    // business params must be included in sign
+    ds_extend_request: JSON.stringify(dsExtendRequest),
+    param_place_order_request4_open_api_d_t_o: JSON.stringify(placeOrderDTO),
+  };
+
+  const sign = signAliExpressRequest(apiPath, paramsForSign, APP_SECRET);
+  const body = new URLSearchParams({ ...paramsForSign, sign }).toString();
+
+  /* ---------- HTTP call ---------- */
+  const url = `${ALI_BASE_URL}${apiPath}`;
+  console.log("[AliExpress] → POST", url);
+
+  const rawText = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }).then((r) => r.text());
+
+  console.log("[AliExpress] ← RAW", rawText.slice(0, 400));
+
+  /* ---------- parse response ---------- */
+  let json: any;
+  try {
+    json = JSON.parse(rawText);
+  } catch (e) {
+    throw new Error("createAliExpressOrder: non-JSON response");
+  }
+
+  const res =
+    json?.aliexpress_ds_order_create_response?.result ?? json?.result ?? null;
+
+  if (!res?.is_success) {
+    console.error("[AliExpress] Order create failed:", res);
+    throw new Error(res?.error_msg || "ORDER_CREATE_FAILED");
+  }
+
+  const orderId = String(
+    res.order_list?.number?.[0] ?? res.order_list?.[0] ?? "unknown"
+  );
+
+  /* ---------- optional: immediately ask for tracking ---------- */
+  let trackingNumber: string | null = null;
+  try {
+    trackingNumber = await getAliOrderTracking(orderId);
+  } catch (e) {
+    console.warn("[AliExpress] tracking not yet available for", orderId);
+  }
+
+  return {
+    orderId,
+    trackingNumber,
+    orderCost: null, // API does not return cost; keep for future
+  };
+}
+
+/* ---------- getAliOrderTracking ------------------------------------------ */
+async function getAliOrderTracking(
+  orderId: string,
+  lang = "en_US"
+): Promise<string | null> {
+  const accessToken = await getAliAccessToken();
+
+  const timestamp = Date.now().toString();
+  const method = "aliexpress.ds.order.tracking.get";
+  const apiPath = "/sync";
+  const sysParams: Record<string, string> = {
+    app_key: APP_KEY,
+    method,
+    sign_method: "sha256",
+    timestamp,
+    access_token: accessToken,
+    ae_order_id: orderId,
+    language: lang,
+  };
+
+  const sign = signAliExpressRequest(apiPath, sysParams, APP_SECRET);
+  const body = new URLSearchParams({ ...sysParams, sign }).toString();
+
+  const url = `${ALI_BASE_URL}${apiPath}`;
+  console.log("[AliExpress] → POST", url, "(tracking)");
+
+  const raw = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }).then((r) => r.text());
+
+  const json = JSON.parse(raw);
+  const data =
+    json?.aliexpress_ds_order_tracking_get_response?.result?.data ??
+    json?.result?.data ??
+    null;
+
+  const track =
+    data?.tracking_detail_line_list?.tracking_detail?.[0]?.mail_no ?? null;
+  return track;
+}
+
 /* ────────────── AliExpress Dropshipping API Helpers ────────────── */
 
 // Helper: sign AliExpress API request (HMAC_SHA256, per new docs)
