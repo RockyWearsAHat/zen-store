@@ -473,11 +473,21 @@ export async function createAliExpressOrder(
   };
 
   const dsExtendRequest = {
+    /* Promotion block — promotion_channel_info is *required* */
+    promotion: {
+      promotion_code: "",
+      promotion_channel_info: "DS", // “DS” recommended by docs
+    },
+    /* Payment block */
     payment: {
       pay_currency: "USD",
       try_to_pay:
         process.env.ALI_TEST_ENVIRONMENT === "true" ? "false" : "true",
-    }, // in test mode prevent payment
+    },
+    /* Optional wholesale toggle (kept empty if not used) */
+    trade_extra_param: {
+      business_model: "retail",
+    },
   };
 
   const apiPath = "/sync";
