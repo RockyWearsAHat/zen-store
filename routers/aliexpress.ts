@@ -418,7 +418,7 @@ export interface AliItem {
 
 export async function createAliExpressOrder(
   items: AliItem[],
-  shipping: any, // expects { address, city, country, province, mobile_no, zip, ... }
+  shipping: any,
   outOrderId?: string
 ): Promise<{
   orderId: string;
@@ -441,46 +441,45 @@ export async function createAliExpressOrder(
     return { orderId: fakeOrderId, trackingNumber: "TEST-TRACK", orderCost: 0 };
   }
 
-  /* ---------- build params exactly as docs describe ---------- */
+  /* ---------- AliExpress TOP parameters (MUST match for sign) ---------- */
+  const sysParams: Record<string, string> = {
+    app_key: APP_KEY,
+    method: "aliexpress.ds.order.create",
+    access_token: accessToken,
+    timestamp: Date.now().toString(), // ← epoch-ms, NOT formatted date
+    sign_method: "sha256",
+    v: "2.0",
+  };
+
+  /* ---------- business parameters ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,
     logistics_address: shipping,
     product_items: items.map((i) => ({
       product_id: Number(i.id),
-      product_count:
-        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+      product_count: i.quantity,
       sku_attr: i.sku_attr ?? "",
-      logistics_service_name: "Zen Essentials",
+      logistics_service_name: "",
       order_memo: " ",
     })),
   };
 
-  const dsExtendRequest = {
-    payment: { pay_currency: "USD" },
-    promotion: { promotion_code: "" },
-  };
+  const dsExtendRequest = { payment: { pay_currency: "USD" } };
 
-  /* ---------- system params ---------- */
-  const timestamp = Date.now().toString();
-  const method = "aliexpress.ds.order.create";
-  const sysParams: Record<string, string> = {
-    app_key: APP_KEY,
-    method,
-    sign_method: "sha256",
-    timestamp,
-    access_token: accessToken,
-  };
-
-  const apiPath = "/sync"; // TOP system interface
-  const paramsForSign = {
+  const apiPath = "/sync";
+  const allParamsForSign = {
     ...sysParams,
-    // business params must be included in sign
     ds_extend_request: JSON.stringify(dsExtendRequest),
     param_place_order_request4_open_api_d_t_o: JSON.stringify(placeOrderDTO),
   };
 
-  const sign = signAliExpressRequest(apiPath, paramsForSign, APP_SECRET);
-  const body = new URLSearchParams({ ...paramsForSign, sign }).toString();
+  /* ---------- signature ---------- */
+  const sign = signAliExpressRequest(apiPath, allParamsForSign, APP_SECRET);
+
+  /* ---------- POST body ---------- */
+  const body = new URLSearchParams({ ...allParamsForSign, sign }).toString();
+
+  console.log("[AliExpress] → POST", `${ALI_BASE_URL}${apiPath}`);
 
   /* ---------- HTTP call ---------- */
   const url = `${ALI_BASE_URL}${apiPath}`;
