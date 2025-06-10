@@ -409,6 +409,20 @@ const TEST_BASE_URL = "https://api-sg.aliexpress.com"; // ← put sandbox URL if
 const ALI_BASE_URL =
   process.env.ALI_TEST_ENVIRONMENT === "true" ? TEST_BASE_URL : LIVE_BASE_URL;
 
+/* ---------- helper : TOP timestamp (UTC+8) -------------------- */
+function topTimestamp(): string {
+  const d = new Date(Date.now() + 8 * 60 * 60 * 1000); // shift to UTC+8
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+      d.getUTCDate()
+    )} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
+      d.getUTCSeconds()
+    )}`
+  );
+}
+
 /* ---------- createAliExpressOrder ----------------------------------------- */
 export interface AliItem {
   id: string | number;
@@ -439,7 +453,7 @@ export async function createAliExpressOrder(
     app_key: APP_KEY,
     method: "aliexpress.ds.order.create",
     access_token: accessToken,
-    timestamp: Date.now().toString(), // epoch-ms
+    timestamp: topTimestamp(), // ← formatted timestamp
     sign_method: "sha256",
     v: "2.0",
   };
@@ -535,14 +549,13 @@ async function getAliOrderTracking(
 ): Promise<string | null> {
   const accessToken = await getAliAccessToken();
 
-  const timestamp = Date.now().toString();
   const method = "aliexpress.ds.order.tracking.get";
   const apiPath = "/sync";
   const sysParams: Record<string, string> = {
     app_key: APP_KEY,
     method,
     sign_method: "sha256",
-    timestamp,
+    timestamp: topTimestamp(), // ← formatted timestamp
     access_token: accessToken,
     ae_order_id: orderId,
     language: lang,
@@ -633,7 +646,7 @@ async function getAliAccessToken(
       throw new Error("No refresh_token available to refresh.");
 
     /* ---------- build body exactly like /oauth/callback ---------- */
-    const ts = Date.now().toString();
+    const ts = topTimestamp(); // ← formatted timestamp
     const base = {
       app_key: APP_KEY,
       client_secret: APP_SECRET,
