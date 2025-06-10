@@ -432,10 +432,13 @@ function signAliExpressRequest(
   return hmac.digest("hex").toUpperCase();
 }
 
-/* -------------------- getAliAccessToken (extra logs + simpler fetch) -------------------- */
-async function getAliAccessToken(forceRefresh = false): Promise<string> {
+/* -------------------- getAliAccessToken -------------------- */
+async function getAliAccessToken(
+  forceRefresh = false,
+  skipDB = false // NEW: don’t reconnect when caller already did
+): Promise<string> {
   try {
-    await connectDB();
+    if (!skipDB) await connectDB();
     let tokenDoc: any = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
@@ -455,164 +458,114 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     );
 
     if (!must) return tokenDoc.access_token;
-
     if (!tokenDoc.refresh_token)
       throw new Error("No refresh_token available to refresh.");
 
-    console.log("[AliExpress] Refreshing token via /auth/token/refresh …");
-
-    /* ---------- build request ---------- */
+    /* ---------- build body exactly like /oauth/callback ---------- */
     const ts = Date.now().toString();
-    const base: Record<string, string> = {
+    const base = {
       app_key: APP_KEY,
       client_secret: APP_SECRET,
       refresh_token: tokenDoc.refresh_token,
       timestamp: ts,
       sign_method: "sha256",
-    };
+    } as Record<string, string>;
     const sign = signAliExpressRequest("/auth/token/refresh", base, APP_SECRET);
     const body = new URLSearchParams({ ...base, sign }).toString();
 
     console.log("[AliExpress] → POST", REFRESH_TOKEN_ENDPOINT);
-    console.log("[AliExpress] → BODY", body);
 
-    /* ---------- perform request (no artificial timeout) ---------- */
-    let rawRes: string;
-    try {
-      const resp = await fetch(REFRESH_TOKEN_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      });
-      rawRes = await resp.text();
-    } catch (e: any) {
-      console.error("[AliExpress] Network error while refreshing:", e);
-      throw new Error("NETWORK_FAIL");
-    }
+    /* ---------- single fetch, no AbortController ---------- */
+    const rawRes = await fetch(REFRESH_TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    }).then((r) => r.text());
 
-    console.log("[AliExpress] ← RAW", rawRes.slice(0, 500));
+    console.log("[AliExpress] ← RAW", rawRes.slice(0, 400));
 
-    /* ---------- parse & validate ---------- */
-    let json: any;
-    try {
-      json = JSON.parse(rawRes);
-    } catch {
-      console.error("[AliExpress] Non-JSON refresh response.");
-      throw new Error("BAD_JSON");
-    }
-
+    const json = JSON.parse(rawRes);
     if (json.code !== "0" || !json.access_token) {
       console.error("[AliExpress] Refresh error payload:", json);
       throw new Error("REFRESH_REJECTED");
     }
 
-    /* ---------- sanity-check tokens ---------- */
-    if (json.refresh_token && json.refresh_token === json.access_token) {
-      console.warn(
-        "[AliExpress] refresh_token equals access_token – keeping previous refresh_token to avoid corruption."
-      );
-      json.refresh_token = undefined; // fall back to old value below
+    if (json.refresh_token === json.access_token) {
+      console.warn("[AliExpress] refresh_token duplicated, keeping old value");
+      delete json.refresh_token;
     }
 
     /* ---------- persist ---------- */
-    const newExp = pickExpiry(json);
-    const update: Record<string, any> = {
-      expires_at: newExp,
-      access_token: json.access_token || tokenDoc.access_token,
+    const update = {
+      expires_at: pickExpiry(json),
+      access_token: json.access_token,
       refresh_token: json.refresh_token || tokenDoc.refresh_token,
+      last_refresh_at: new Date(),
     };
-
-    tokenDoc = await AliToken.findOneAndUpdate(
-      { _id: tokenDoc._id },
-      { ...update, last_refresh_at: new Date() },
-      { new: true, upsert: false }
-    );
-    console.log(
-      "[AliExpress] Tokens updated, next expiry:",
-      tokenDoc.expires_at
-    );
-
-    return tokenDoc.access_token!;
+    tokenDoc = await AliToken.findOneAndUpdate({ _id: tokenDoc._id }, update, {
+      new: true,
+      upsert: false,
+    });
+    console.log("[AliExpress] Tokens saved, next expiry:", tokenDoc.expires_at);
+    return tokenDoc.access_token;
   } catch (err) {
     console.error("[AliExpress] getAliAccessToken fatal:", err);
     throw err;
   }
-} // <- proper function end
+}
 
 /* ---------- atomic refresh runner (3-day rule + 10-s lock) ---------- */
 async function refreshIfNeeded(): Promise<void> {
   const now = Date.now();
-  const lockLimit = new Date(now - THROTTLE_MS); // ≥ 10 s ago
-  const expiryLimit = new Date(now + THREE_DAYS); // ≤ 3 days left
+  const lockCutoff = new Date(now - THROTTLE_MS);
+  const expiryCut = new Date(now + THREE_DAYS);
 
-  await connectDB(); // ensure single live conn
+  await connectDB(); // single connect
 
-  /* 0️⃣  read current token (for diagnostics) */
-  const current: any = await AliToken.findOne().lean().exec();
-  if (!current) {
-    console.warn("[AliExpress] No AliToken document found.");
+  const docBefore: any = await AliToken.findOne().lean().exec();
+  if (!docBefore) {
+    console.warn("[AliExpress] No AliToken doc.");
     return;
   }
 
-  const expMs = current.expires_at ? current.expires_at.getTime() : 0;
-  const expSoon = expMs && expMs <= expiryLimit.getTime();
-  const lastMs = current.last_refresh_at
-    ? current.last_refresh_at.getTime()
-    : 0;
-  const tenSecPassed = !lastMs || lastMs <= lockLimit.getTime();
-
   console.log(
-    "[AliExpress] refreshIfNeeded status → " +
-      `expSoon=${expSoon} (expires_at=${
-        current.expires_at?.toISOString() || "n/a"
-      }) | ` +
-      `tenSecPassed=${tenSecPassed} (last_refresh_at=${
-        current.last_refresh_at?.toISOString() || "n/a"
-      })`
+    `[AliExpress] refresh? exp<=3d=${
+      docBefore.expires_at && docBefore.expires_at <= expiryCut
+    } | 10sGap=${
+      !docBefore.last_refresh_at || docBefore.last_refresh_at <= lockCutoff
+    }`
   );
 
-  /* 1️⃣  reserve the 10-s slot */
   const doc: any = await AliToken.findOneAndUpdate(
     {
-      _id: current._id,
-      expires_at: { $lte: expiryLimit }, // rule ➊  ≤3 d
+      _id: docBefore._id,
+      expires_at: { $lte: expiryCut },
       $or: [
         { last_refresh_at: { $exists: false } },
-        { last_refresh_at: { $lte: lockLimit } }, // rule ➋  ≥10 s
+        { last_refresh_at: { $lte: lockCutoff } },
       ],
     },
     { last_refresh_at: new Date(now) }, // take slot
     { new: true }
   ).exec();
 
-  if (!doc) {
-    console.log(
-      "[AliExpress] No refresh needed or another process holds lock."
-    );
-    return; // nothing to do
-  }
+  if (!doc) return; // throttled / not due
+  console.log("[AliExpress] Slot reserved, refreshing …");
 
-  console.log("[AliExpress] Lock obtained – starting token refresh …");
-
-  /* 2️⃣  perform real refresh (forced) */
   try {
-    await getAliAccessToken(true); // re-connect internally
+    await getAliAccessToken(true, true); // reuse connection
+    await AliToken.updateOne({ _id: doc._id }, { last_refresh_at: new Date() });
+    console.log("[AliExpress] Refresh success.");
+  } catch (e) {
+    console.error("[AliExpress] Refresh failed:", e);
     await AliToken.updateOne(
       { _id: doc._id },
-      { last_refresh_at: new Date() } // stamp completion time
-    ).exec();
-    console.log("[AliExpress] Token refresh completed successfully.");
-  } catch (err) {
-    console.error("[AliExpress] Token refresh failed:", err);
-    // release slot immediately – allows quick retry
-    await AliToken.updateOne(
-      { _id: doc._id },
-      { last_refresh_at: new Date(now - 1_000) }
-    ).exec();
+      { last_refresh_at: new Date(now - 1000) } // quick retry possible
+    );
   }
 }
 
-/* ---------- /ali/refresh : fire-and-forget ---------- */
+/* ---------- /ali/refresh ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
   res.json({ ok: true });
   refreshIfNeeded().catch((e) =>
@@ -620,19 +573,17 @@ aliexpressRouter.get("/refresh", (_req, res) => {
   );
 });
 
-/* ---------- Netlify build-hook : force token refresh ---------- */
+/* ---------- /redeploy (same logic) ---------- */
 aliexpressRouter.post("/redeploy", async (_req, res) => {
-  console.log("[AliExpress] Redeploy hook triggered – forcing token refresh");
   try {
-    await getAliAccessToken(true); // always force a refresh
+    await connectDB();
+    await getAliAccessToken(true, true); // reuse connection
     res.status(200).send("Redeploy request processed.");
-  } catch (err: any) {
-    console.error("[AliExpress] Redeploy refresh failed:", err);
+  } catch (e: any) {
+    console.error("[AliExpress] Redeploy refresh failed:", e);
     res.status(500).send("Redeploy refresh failed.");
   }
 });
-
-/* ---------- getAliAccessToken : drop skipDB flag ---------- */
 
 /* ---------- guard middleware ---------- */
 function requireAliInitAllowed(
