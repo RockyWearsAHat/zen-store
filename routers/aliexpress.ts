@@ -434,6 +434,13 @@ export async function createAliExpressOrder(
 
   const accessToken = await getAliAccessToken(); // existing helper
 
+  /* ---------- TEST-MODE BYPASS ---------- */
+  if (process.env.ALI_TEST_ENVIRONMENT === "true") {
+    const fakeOrderId = `TEST-${outOrderId ?? Date.now()}`;
+    console.log("[AliExpress] (TEST) returning fake order:", fakeOrderId);
+    return { orderId: fakeOrderId, trackingNumber: "TEST-TRACK", orderCost: 0 };
+  }
+
   /* ---------- build params exactly as docs describe ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,

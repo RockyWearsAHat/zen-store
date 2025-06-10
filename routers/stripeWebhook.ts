@@ -32,12 +32,28 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     if (event.type === "payment_intent.succeeded") {
       const base = event.data.object as Stripe.PaymentIntent;
 
-      // fully expanded PI (latest_charge + balance_tx)
+      // fully expanded PI
       const intent = (await stripe.paymentIntents.retrieve(base.id, {
         expand: ["latest_charge.balance_transaction", "payment_method"],
       })) as Stripe.PaymentIntent;
 
-      // ---------- create AliExpress order immediately ----------
+      /* ---------- derive charge / pm / e-mail once ---------- */
+      const charge = intent.latest_charge as Stripe.Charge | undefined;
+      let paymentMethod: Stripe.PaymentMethod | null = null;
+      if (typeof intent.payment_method === "string") {
+        paymentMethod = await stripe.paymentMethods.retrieve(
+          intent.payment_method
+        );
+      } else {
+        paymentMethod = intent.payment_method as Stripe.PaymentMethod;
+      }
+      const email =
+        intent.receipt_email ||
+        charge?.billing_details?.email ||
+        paymentMethod?.billing_details?.email ||
+        null;
+
+      /* ---------- create AliExpress order ---------- */
       // let aliCost = 0;
 
       try {
@@ -53,62 +69,49 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           : null;
 
         /* ---------- place the order ---------- */
-        const { orderId, trackingNumber, orderCost } =
-          await createAliExpressOrder(
+        let orderId: string | null = null;
+        let trackingNumber: string | null = null;
+        try {
+          const ali = await createAliExpressOrder(
             itemsForAli,
             shipping,
             intent.metadata.order_number
           );
+          orderId = ali.orderId;
+          trackingNumber = ali.trackingNumber;
 
-        /* ---------- persist on PaymentIntent ---------- */
-        await stripe.paymentIntents.update(intent.id, {
-          metadata: {
-            ali_order_id: orderId,
-            ali_tracking: trackingNumber,
-            ali_cost_usd: orderCost ?? "",
-          },
-        });
-        console.log("📦 AliExpress order placed (immediate):", orderId);
+          await stripe.paymentIntents.update(intent.id, {
+            metadata: {
+              ali_order_id: orderId,
+              ali_tracking: trackingNumber,
+              ali_cost_usd: ali.orderCost ?? "",
+            },
+          });
+          console.log("📦 AliExpress order placed:", orderId);
+        } catch (err) {
+          console.error("AliExpress order failed:", err);
+        }
+
+        /* ---------- e-mail ---------- */
+        if (orderId && email) {
+          await sendSuccessEmail(intent, email, charge, paymentMethod);
+        } else if (!orderId) {
+          console.warn("Skipping success email – AliExpress order not created");
+        } else {
+          console.warn("Skipping success email – no e-mail address found");
+        }
       } catch (err) {
         console.error("AliExpress order failed (immediate):", err);
       }
 
-      // Send success email with tracking number
-      const charge = intent.latest_charge as Stripe.Charge | undefined;
-      let paymentMethod: Stripe.PaymentMethod | null = null;
-      if (typeof intent.payment_method === "string") {
-        paymentMethod = await stripe.paymentMethods.retrieve(
-          intent.payment_method
-        );
-      } else {
-        paymentMethod = intent.payment_method as Stripe.PaymentMethod;
-      }
-      const email =
-        intent.receipt_email ||
-        charge?.billing_details?.email ||
-        paymentMethod?.billing_details?.email ||
-        null;
-      if (email) {
-        await sendSuccessEmail(
-          intent,
-          email,
-          charge,
-          paymentMethod
-          // trackingNumber is now read from intent.metadata.ali_tracking inside sendSuccessEmail
-        );
-      }
       await createPayoutForIntent(intent); // ← payout after order
 
-      // ─── derive brand / last4 ───
+      // ─── derive brand / last4 for console log ───
       let brand: string | undefined;
       let last4: string | undefined;
-
-      if (intent.payment_method && typeof intent.payment_method === "object") {
-        const paymentMethod = intent.payment_method as Stripe.PaymentMethod;
-        if (paymentMethod?.type === "card" && paymentMethod.card) {
-          brand = paymentMethod.card.brand;
-          last4 = paymentMethod.card.last4;
-        }
+      if (paymentMethod?.type === "card" && paymentMethod.card) {
+        brand = paymentMethod.card.brand;
+        last4 = paymentMethod.card.last4;
       }
 
       console.log(
