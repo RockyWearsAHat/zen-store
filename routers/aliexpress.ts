@@ -535,37 +535,52 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
   }
 } // <- proper function end
 
-/* ---------- atomic refresh runner ---------- */
+/* ---------- atomic refresh runner (3-day rule + 10-s lock) ---------- */
 async function refreshIfNeeded(): Promise<void> {
   const now = Date.now();
-  const threeDaysMs = THREE_DAYS;
-  const tooOld = new Date(now - THROTTLE_MS); // >10 s ago
-  if (!tooOld) return;
-  const soonExp = new Date(now + threeDaysMs); // expires ≤3 d
+  const lockThreshold = new Date(now - THROTTLE_MS); // >10 s ago
+  const expThreshold = new Date(now + THREE_DAYS); // expires ≤3 d
 
   await connectDB();
 
-  // 1️⃣  reserve the run if criteria match
+  // 1️⃣  Atomically reserve the refresh only when BOTH rules match
   const doc = await AliToken.findOneAndUpdate(
     {
-      $or: [
-        { access_token: { $exists: false } },
-        { expires_at: { $lt: soonExp } }, // expires within 3 days
+      $and: [
+        {
+          $or: [
+            { access_token: { $exists: false } },
+            { expires_at: { $lt: expThreshold } }, // exp ≤ 3 days
+          ],
+        },
+        {
+          $or: [
+            { last_refresh_at: { $exists: false } },
+            { last_refresh_at: { $lt: lockThreshold } }, // not within 10 s
+          ],
+        },
       ],
     },
-    { last_refresh_at: new Date(now) }, // take the slot
+    { last_refresh_at: new Date(now) }, // take 10-s lock
     { new: true }
   ).exec();
 
-  if (!doc) return; // nothing to do / throttled
+  if (!doc) return; // another request owns the lock OR token not due
 
-  // 2️⃣ perform the real refresh only if still required
+  console.log(doc);
+
+  // 2️⃣ Perform the real AliExpress refresh (forced)
   try {
-    // force a refresh just like the /redeploy route
+    console.log("Attempting to refresh token from /refresh route");
     await getAliAccessToken(true);
+    // success → last_refresh_at already set to now by the lock
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);
-    return;
+    // rollback lock so another attempt can happen immediately
+    await AliToken.updateOne(
+      {},
+      { last_refresh_at: new Date(now - THROTTLE_MS) }
+    ).exec();
   }
 }
 
