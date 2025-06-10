@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction, Router } from "express";
-import { connectDB } from "../server/db"; // Ensure connectDB is imported
 import crypto from "crypto";
 import mongoose from "mongoose";
 // --- add express-session ---
@@ -357,7 +356,7 @@ aliexpressRouter.get(
       const expiresAt = pickExpiry(responseData);
 
       // Ensure database is connected before writing tokens
-      await connectDB();
+      // await connectDB();
 
       const savedToken = await AliToken.findOneAndUpdate(
         {},
@@ -437,7 +436,7 @@ function signAliExpressRequest(
 // ---------------- getAliAccessToken ----------------
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
-    await connectDB();
+    // await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
@@ -541,7 +540,7 @@ async function refreshIfNeeded(): Promise<void> {
   const lockThreshold = new Date(now - THROTTLE_MS); // >10 s ago
   const expThreshold = new Date(now + THREE_DAYS); // expires ≤3 d
 
-  await connectDB();
+  // await connectDB();
 
   // 1️⃣  Atomically reserve the refresh only when BOTH rules match
   const doc = await AliToken.findOneAndUpdate(

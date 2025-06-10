@@ -4,8 +4,8 @@ import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
 
-// @ts-expect-error
-import { db } from "./db";
+import { connectDB } from "../server/db";
+connectDB(); //Connect to MongoDB
 
 export const app = express();
 
