@@ -2,12 +2,18 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 dotenv.config();
 
+// Don’t queue ops while disconnected – fail fast instead of 10 s buffer timeout
+mongoose.set("bufferCommands", false);
+
 // Variable to cache the Mongoose connection
 let cachedConnection: typeof mongoose | null = null;
 
 export async function connectDB() {
-  if (cachedConnection) {
-    // console.log("[MongoDB] Using cached database connection");
+  // Re-use only when connection is really open
+  if (
+    cachedConnection &&
+    cachedConnection.connection.readyState === 1 /* connected */
+  ) {
     return cachedConnection;
   }
 
@@ -20,17 +26,14 @@ export async function connectDB() {
   try {
     // console.log("[MongoDB] Attempting to connect to database...");
     cachedConnection = await mongoose.connect(process.env.MONGODB_URI, {
-      // Options to avoid deprecation warnings, adjust as needed for your Mongoose version
-      // useNewUrlParser: true, // Deprecated in Mongoose 6+
-      // useUnifiedTopology: true, // Deprecated in Mongoose 6+
-      // bufferCommands: false, // Disable command buffering if you want to handle connection errors explicitly
+      // tune server selection to fail faster
+      serverSelectionTimeoutMS: 5_000,
     });
     console.log("[MongoDB] Database connected successfully");
     return cachedConnection;
   } catch (error) {
     console.error("[MongoDB] Database connection error:", error);
-    // Set cachedConnection to null on failure to allow retries on subsequent calls
-    cachedConnection = null;
+    cachedConnection = null; // allow next call to retry
     throw error; // Re-throw the error to be caught by the caller
   }
 }
