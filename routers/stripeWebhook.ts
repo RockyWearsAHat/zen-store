@@ -8,108 +8,138 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // Only apply basic JSON parsing to the webhook route
 router.post("/", async (req: Request, res: Response): Promise<void> => {
-  /* ---------- event comes pre-parsed ---------- */
-  const event = req.body as Stripe.Event;
+  try {
+    /* ---------- resolve Stripe.Event ---------- */
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || "";
 
-  if (event.type === "payment_intent.succeeded") {
-    const base = event.data.object as Stripe.PaymentIntent;
-
-    // fully expanded PI (latest_charge + balance_tx)
-    const intent = (await stripe.paymentIntents.retrieve(base.id, {
-      expand: ["latest_charge.balance_transaction", "payment_method"],
-    })) as Stripe.PaymentIntent;
-
-    // ---------- create AliExpress order immediately ----------
-    // let aliCost = 0;
-
-    try {
-      /* ---------- build AliExpress payload from PI metadata ---------- */
-      const raw = JSON.parse(intent.metadata.items ?? "[]");
-      const itemsForAli = raw.map((i: any) => ({
-        id: i.aliId,
-        quantity: process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
-      }));
-      const shipping = intent.metadata.shipping
-        ? JSON.parse(intent.metadata.shipping)
-        : null;
-
-      /* ---------- place the order ---------- */
-      const { orderId, trackingNumber, orderCost } =
-        await createAliExpressOrder(
-          itemsForAli,
-          shipping,
-          intent.metadata.order_number
-        );
-
-      /* ---------- persist on PaymentIntent ---------- */
-      await stripe.paymentIntents.update(intent.id, {
-        metadata: {
-          ali_order_id: orderId,
-          ali_tracking: trackingNumber,
-          ali_cost_usd: orderCost ?? "",
-        },
-      });
-      console.log("📦 AliExpress order placed (immediate):", orderId);
-    } catch (err) {
-      console.error("AliExpress order failed (immediate):", err);
-    }
-
-    // Send success email with tracking number
-    const charge = intent.latest_charge as Stripe.Charge | undefined;
-    let paymentMethod: Stripe.PaymentMethod | null = null;
-    if (typeof intent.payment_method === "string") {
-      paymentMethod = await stripe.paymentMethods.retrieve(
-        intent.payment_method
-      );
+    let event: Stripe.Event;
+    if (sig && secret) {
+      // preferred – signature check
+      event = stripe.webhooks.constructEvent(req.body, sig, secret);
     } else {
-      paymentMethod = intent.payment_method as Stripe.PaymentMethod;
-    }
-    const email =
-      intent.receipt_email ||
-      charge?.billing_details?.email ||
-      paymentMethod?.billing_details?.email ||
-      null;
-    if (email) {
-      await sendSuccessEmail(
-        intent,
-        email,
-        charge,
-        paymentMethod
-        // trackingNumber is now read from intent.metadata.ali_tracking inside sendSuccessEmail
+      // fallback – already-JSON (test / missing secret)
+      event = JSON.parse(
+        Buffer.isBuffer(req.body)
+          ? req.body.toString("utf8")
+          : (req.body as any)
       );
     }
-    await createPayoutForIntent(intent); // ← payout after order
 
-    // ─── derive brand / last4 ───
-    let brand: string | undefined;
-    let last4: string | undefined;
+    console.log("[stripeWebhook] ↪ event:", event.type, event.id);
 
-    if (intent.payment_method && typeof intent.payment_method === "object") {
-      const paymentMethod = intent.payment_method as Stripe.PaymentMethod;
-      if (paymentMethod?.type === "card" && paymentMethod.card) {
-        brand = paymentMethod.card.brand;
-        last4 = paymentMethod.card.last4;
+    /* ---------- handle payment_intent.succeeded ---------- */
+    if (event.type === "payment_intent.succeeded") {
+      const base = event.data.object as Stripe.PaymentIntent;
+
+      // fully expanded PI (latest_charge + balance_tx)
+      const intent = (await stripe.paymentIntents.retrieve(base.id, {
+        expand: ["latest_charge.balance_transaction", "payment_method"],
+      })) as Stripe.PaymentIntent;
+
+      // ---------- create AliExpress order immediately ----------
+      // let aliCost = 0;
+
+      try {
+        /* ---------- build AliExpress payload from PI metadata ---------- */
+        const raw = JSON.parse(intent.metadata.items ?? "[]");
+        const itemsForAli = raw.map((i: any) => ({
+          id: i.aliId,
+          quantity:
+            process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+        }));
+        const shipping = intent.metadata.shipping
+          ? JSON.parse(intent.metadata.shipping)
+          : null;
+
+        /* ---------- place the order ---------- */
+        const { orderId, trackingNumber, orderCost } =
+          await createAliExpressOrder(
+            itemsForAli,
+            shipping,
+            intent.metadata.order_number
+          );
+
+        /* ---------- persist on PaymentIntent ---------- */
+        await stripe.paymentIntents.update(intent.id, {
+          metadata: {
+            ali_order_id: orderId,
+            ali_tracking: trackingNumber,
+            ali_cost_usd: orderCost ?? "",
+          },
+        });
+        console.log("📦 AliExpress order placed (immediate):", orderId);
+      } catch (err) {
+        console.error("AliExpress order failed (immediate):", err);
+      }
+
+      // Send success email with tracking number
+      const charge = intent.latest_charge as Stripe.Charge | undefined;
+      let paymentMethod: Stripe.PaymentMethod | null = null;
+      if (typeof intent.payment_method === "string") {
+        paymentMethod = await stripe.paymentMethods.retrieve(
+          intent.payment_method
+        );
+      } else {
+        paymentMethod = intent.payment_method as Stripe.PaymentMethod;
+      }
+      const email =
+        intent.receipt_email ||
+        charge?.billing_details?.email ||
+        paymentMethod?.billing_details?.email ||
+        null;
+      if (email) {
+        await sendSuccessEmail(
+          intent,
+          email,
+          charge,
+          paymentMethod
+          // trackingNumber is now read from intent.metadata.ali_tracking inside sendSuccessEmail
+        );
+      }
+      await createPayoutForIntent(intent); // ← payout after order
+
+      // ─── derive brand / last4 ───
+      let brand: string | undefined;
+      let last4: string | undefined;
+
+      if (intent.payment_method && typeof intent.payment_method === "object") {
+        const paymentMethod = intent.payment_method as Stripe.PaymentMethod;
+        if (paymentMethod?.type === "card" && paymentMethod.card) {
+          brand = paymentMethod.card.brand;
+          last4 = paymentMethod.card.last4;
+        }
+      }
+
+      console.log(
+        "✅ payment_intent.succeeded:",
+        intent.id,
+        email,
+        brand,
+        last4
+      );
+    }
+
+    /* ---------- handle payment_intent.payment_failed ---------- */
+    if (event.type === "payment_intent.payment_failed") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+
+      const email = await pickEmail(stripe, intent); // ← updated lookup
+
+      console.log("❌ payment_intent.payment_failed:", intent.id, email ?? "—");
+
+      if (email) {
+        sendFailureEmail(intent, email).catch(console.error);
+      } else {
+        console.warn("No e-mail found on failed payment", intent.id);
       }
     }
 
-    console.log("✅ payment_intent.succeeded:", intent.id, email, brand, last4);
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error("[stripeWebhook] fatal", err);
+    res.status(400).send("Webhook processing error");
   }
-
-  if (event.type === "payment_intent.payment_failed") {
-    const intent = event.data.object as Stripe.PaymentIntent;
-
-    const email = await pickEmail(stripe, intent); // ← updated lookup
-
-    console.log("❌ payment_intent.payment_failed:", intent.id, email ?? "—");
-
-    if (email) {
-      sendFailureEmail(intent, email).catch(console.error);
-    } else {
-      console.warn("No e-mail found on failed payment", intent.id);
-    }
-  }
-
-  res.json({ received: true });
 });
 
 /* ---------- shared helper to create / retry a payout ---------- */
