@@ -434,27 +434,34 @@ function signAliExpressRequest(
   return hmac.digest("hex").toUpperCase();
 }
 
-// ---------------- getAliAccessToken ----------------
+/* -------------------- getAliAccessToken (extra logs) -------------------- */
 async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
     await connectDB();
-    let tokenDoc = await AliToken.findOne().exec();
+    let tokenDoc: any = await AliToken.findOne().exec(); // typed as any
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
-    const hasAccess = !!tokenDoc.access_token;
-    const hasRefresh = !!tokenDoc.refresh_token;
+    const now = Date.now();
     const expMs = tokenDoc.expires_at?.getTime() ?? 0;
-    const expSoon = !expMs || expMs - Date.now() < THREE_DAYS;
-    const mustRefresh = forceRefresh || (!hasAccess && hasRefresh) || expSoon;
+    const lastStr = tokenDoc.last_refresh_at?.toISOString() ?? "n/a";
+    const expSoon = !expMs || expMs - now < THREE_DAYS;
+    const must =
+      forceRefresh ||
+      (!tokenDoc.access_token && tokenDoc.refresh_token) ||
+      expSoon;
 
-    /* ---------- no refresh needed ---------- */
-    if (!mustRefresh && hasAccess) {
-      return tokenDoc.access_token!;
-    }
+    console.log(
+      `[AliExpress] getAliAccessToken | force=${forceRefresh} expSoon=${expSoon} mustRefresh=${must} ` +
+        `expires_at=${tokenDoc.expires_at?.toISOString() ?? "n/a"} ` +
+        `last_refresh_at=${lastStr}`
+    );
 
-    if (!hasRefresh) throw new Error("No refresh_token available to refresh.");
+    if (!must) return tokenDoc.access_token;
 
-    console.log("[AliExpress] Performing token refresh …");
+    if (!tokenDoc.refresh_token)
+      throw new Error("No refresh_token available to refresh.");
+
+    console.log("[AliExpress] Refreshing token via /auth/token/refresh …");
 
     /* ---------- call /auth/token/refresh ---------- */
     const ts = Date.now().toString();
@@ -519,9 +526,9 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
     };
 
     tokenDoc = await AliToken.findOneAndUpdate(
-      { _id: tokenDoc._id }, // update the same doc
+      { _id: tokenDoc._id },
       { ...update, last_refresh_at: new Date() },
-      { new: true, upsert: false } // 🚫 no new document
+      { new: true, upsert: false }
     );
     console.log(
       "[AliExpress] Tokens updated, next expiry:",
@@ -541,35 +548,66 @@ async function refreshIfNeeded(): Promise<void> {
   const lockLimit = new Date(now - THROTTLE_MS); // ≥ 10 s ago
   const expiryLimit = new Date(now + THREE_DAYS); // ≤ 3 days left
 
-  await connectDB(); // one live conn
+  await connectDB(); // ensure single live conn
 
-  // 1️⃣ try to reserve the 10-s slot (inclusive comparison, no race)
-  const doc = await AliToken.findOneAndUpdate(
+  /* 0️⃣  read current token (for diagnostics) */
+  const current: any = await AliToken.findOne().lean().exec();
+  if (!current) {
+    console.warn("[AliExpress] No AliToken document found.");
+    return;
+  }
+
+  const expMs = current.expires_at ? current.expires_at.getTime() : 0;
+  const expSoon = expMs && expMs <= expiryLimit.getTime();
+  const lastMs = current.last_refresh_at
+    ? current.last_refresh_at.getTime()
+    : 0;
+  const tenSecPassed = !lastMs || lastMs <= lockLimit.getTime();
+
+  console.log(
+    "[AliExpress] refreshIfNeeded status → " +
+      `expSoon=${expSoon} (expires_at=${
+        current.expires_at?.toISOString() || "n/a"
+      }) | ` +
+      `tenSecPassed=${tenSecPassed} (last_refresh_at=${
+        current.last_refresh_at?.toISOString() || "n/a"
+      })`
+  );
+
+  /* 1️⃣  reserve the 10-s slot */
+  const doc: any = await AliToken.findOneAndUpdate(
     {
-      access_token: { $exists: true },
-      expires_at: { $lte: expiryLimit }, // ≤ 3 d
+      _id: current._id,
+      expires_at: { $lte: expiryLimit }, // rule ➊  ≤3 d
       $or: [
         { last_refresh_at: { $exists: false } },
-        { last_refresh_at: { $lte: lockLimit } }, // ≥ 10 s
+        { last_refresh_at: { $lte: lockLimit } }, // rule ➋  ≥10 s
       ],
     },
     { last_refresh_at: new Date(now) }, // take slot
     { new: true }
   ).exec();
 
-  if (!doc) return; // lock not obtained / not due
-  console.log("[AliExpress] Slot obtained – refreshing token…");
+  if (!doc) {
+    console.log(
+      "[AliExpress] No refresh needed or another process holds lock."
+    );
+    return; // nothing to do
+  }
 
-  // 2️⃣ perform real refresh (forced)
+  console.log("[AliExpress] Lock obtained – starting token refresh …");
+
+  /* 2️⃣  perform real refresh (forced) */
   try {
-    await getAliAccessToken(true); // always reconnect
+    await getAliAccessToken(true); // re-connect internally
     await AliToken.updateOne(
       { _id: doc._id },
-      { last_refresh_at: new Date() } // extend to finish time
+      { last_refresh_at: new Date() } // stamp completion time
     ).exec();
+    console.log("[AliExpress] Token refresh completed successfully.");
   } catch (err) {
-    console.error("[AliExpress] refresh failed:", err);
-    // release slot immediately
+    console.error("[AliExpress] Token refresh failed:", err);
+    // release slot immediately – allows quick retry
     await AliToken.updateOne(
       { _id: doc._id },
       { last_refresh_at: new Date(now - 1_000) }
