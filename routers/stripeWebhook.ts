@@ -10,7 +10,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 // Only apply express.raw() to the webhook route
 router.post(
   "/",
-  express.raw({ type: "*/*" }),
+  express.raw({
+    type: "application/json", // Stripe sends application/json
+    verify: (_req, _res, buf) => {
+      /* keep a safe copy – runs before any body-parser downstream */
+      (_req as any).rawBody = buf;
+    },
+  }),
   async (req: Request, res: Response): Promise<void> => {
     /* ---------- prepare payload & secret ---------- */
     const endpointSecret = (process.env.STRIPE_WEBHOOK_SECRET || "").trim();
@@ -20,16 +26,10 @@ router.post(
       return;
     }
 
-    // Prefer the Buffer created by express.raw(); fall back to any upstream rawBody
-    let payload: Buffer | string = req.body as any;
-    if (!Buffer.isBuffer(payload) && typeof payload !== "string") {
-      if ((req as any).rawBody) {
-        payload = (req as any).rawBody;
-      } else {
-        // Last resort – stringify mutated body (will likely still fail)
-        payload = Buffer.from(JSON.stringify(req.body));
-      }
-    }
+    /* ---------- choose the raw payload ---------- */
+    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const payload: Buffer | string =
+      rawBody && rawBody.length ? rawBody : req.body;
 
     const sigHeader = Array.isArray(req.headers["stripe-signature"])
       ? (req.headers["stripe-signature"] as string[])[0]
@@ -49,17 +49,18 @@ router.post(
         endpointSecret
       );
     } catch (err: any) {
-      // Add detailed diagnostics once, then respond 400
+      /* ─── extra diagnostics ─── */
+      console.error("[Stripe] Webhook verification failed:", err?.message);
       console.error(
-        "[Stripe] Webhook verification failed:",
-        err?.message ?? err
-      );
-      console.error(
-        `[Stripe] payloadType=${
-          Buffer.isBuffer(payload) ? "Buffer" : typeof payload
-        } length=${
-          Buffer.isBuffer(payload) ? payload.length : (payload as string).length
-        }`
+        `[Stripe] endpointSecret-prefix=${endpointSecret.slice(0, 8)}…  ` +
+          `sigHeader=${sigHeader.slice(0, 32)}…  ` +
+          `payloadType=${
+            Buffer.isBuffer(payload) ? "Buffer" : typeof payload
+          } len=${
+            Buffer.isBuffer(payload)
+              ? payload.length
+              : (payload as string).length
+          }`
       );
       res.status(400).send(`Webhook Error: ${err.message}`);
       return;
