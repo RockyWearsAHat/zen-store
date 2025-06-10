@@ -585,6 +585,18 @@ aliexpressRouter.get("/refresh", (_req, res) => {
   );
 });
 
+/* ---------- Netlify build-hook : force token refresh ---------- */
+aliexpressRouter.post("/redeploy", async (_req, res) => {
+  console.log("[AliExpress] Redeploy hook triggered – forcing token refresh");
+  try {
+    await getAliAccessToken(true); // always force a refresh
+    res.status(200).send("Redeploy request processed.");
+  } catch (err: any) {
+    console.error("[AliExpress] Redeploy refresh failed:", err);
+    res.status(500).send("Redeploy refresh failed.");
+  }
+});
+
 /* ---------- getAliAccessToken : drop skipDB flag ---------- */
 
 /* ---------- guard middleware ---------- */
