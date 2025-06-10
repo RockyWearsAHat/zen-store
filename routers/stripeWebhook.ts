@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 // Only apply express.raw() to the webhook route
 router.post(
   "/",
-  express.raw({ type: "application/json" }),
+  express.raw({ type: "*/*" }),
   async (req: Request, res: Response): Promise<void> => {
     const sig = req.headers["stripe-signature"] as string;
     let event: Stripe.Event;
