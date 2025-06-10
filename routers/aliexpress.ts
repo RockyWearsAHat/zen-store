@@ -435,12 +435,9 @@ function signAliExpressRequest(
 }
 
 // ---------------- getAliAccessToken ----------------
-async function getAliAccessToken(
-  forceRefresh = false,
-  skipDB = false // ← new flag
-): Promise<string> {
+async function getAliAccessToken(forceRefresh = false): Promise<string> {
   try {
-    if (!skipDB) await connectDB();
+    await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
@@ -541,71 +538,54 @@ async function getAliAccessToken(
 /* ---------- atomic refresh runner (3-day rule + 10-s lock) ---------- */
 async function refreshIfNeeded(): Promise<void> {
   const now = Date.now();
-  const lockThreshold = new Date(now - THROTTLE_MS);
-  const expThreshold = new Date(now + THREE_DAYS);
+  const lockLimit = new Date(now - THROTTLE_MS); // ≥ 10 s ago
+  const expiryLimit = new Date(now + THREE_DAYS); // ≤ 3 days left
 
-  await connectDB(); // single DB connect for the run
+  await connectDB(); // one live conn
 
-  // 1️⃣  Atomically reserve the refresh only when BOTH rules match
+  // 1️⃣ try to reserve the 10-s slot (inclusive comparison, no race)
   const doc = await AliToken.findOneAndUpdate(
     {
-      $and: [
-        {
-          $or: [
-            { access_token: { $exists: false } },
-            { expires_at: { $lt: expThreshold } }, // exp ≤ 3 days
-          ],
-        },
-        {
-          $or: [
-            { last_refresh_at: { $exists: false } },
-            { last_refresh_at: { $lt: lockThreshold } }, // not within 10 s
-          ],
-        },
+      access_token: { $exists: true },
+      expires_at: { $lte: expiryLimit }, // ≤ 3 d
+      $or: [
+        { last_refresh_at: { $exists: false } },
+        { last_refresh_at: { $lte: lockLimit } }, // ≥ 10 s
       ],
     },
-    { last_refresh_at: new Date(now) }, // take 10-s lock
+    { last_refresh_at: new Date(now) }, // take slot
     { new: true }
   ).exec();
 
-  if (!doc) return; // another request owns the lock OR token not due
+  if (!doc) return; // lock not obtained / not due
+  console.log("[AliExpress] Slot obtained – refreshing token…");
 
-  console.log(doc);
-
-  // 2️⃣ Perform the real AliExpress refresh (forced)
+  // 2️⃣ perform real refresh (forced)
   try {
-    console.log("Attempting to refresh token from /refresh route");
-    await getAliAccessToken(true, true); // skip second connectDB()
-    // success → last_refresh_at already set to now by the lock
+    await getAliAccessToken(true); // always reconnect
+    await AliToken.updateOne(
+      { _id: doc._id },
+      { last_refresh_at: new Date() } // extend to finish time
+    ).exec();
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);
-    // rollback lock so another attempt can happen immediately
+    // release slot immediately
     await AliToken.updateOne(
-      {},
-      { last_refresh_at: new Date(now - THROTTLE_MS) }
+      { _id: doc._id },
+      { last_refresh_at: new Date(now - 1_000) }
     ).exec();
   }
 }
 
 /* ---------- /ali/refresh : fire-and-forget ---------- */
 aliexpressRouter.get("/refresh", (_req, res) => {
-  res.json({ ok: true }); // instant response
+  res.json({ ok: true });
   refreshIfNeeded().catch((e) =>
     console.error("[AliExpress] Background refresh failed:", e)
   );
 });
 
-aliexpressRouter.post("/redeploy", async (_, res) => {
-  // Implementation for redeploying an AliExpress product
-  console.log(
-    "[AliExpress] Redeploy request received, refreshing access token."
-  );
-  await getAliAccessToken(true);
-  res.status(200).send("Redeploy request processed.");
-  return;
-});
-
-const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
+/* ---------- getAliAccessToken : drop skipDB flag ---------- */
 
 /* ---------- guard middleware ---------- */
 function requireAliInitAllowed(
@@ -622,4 +602,4 @@ function requireAliInitAllowed(
   next();
 }
 
-export { getAliAccessToken };
+const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
