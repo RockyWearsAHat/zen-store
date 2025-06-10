@@ -565,12 +565,15 @@ async function refreshIfNeeded(): Promise<void> {
   }
 }
 
-/* ---------- /ali/refresh ---------- */
-aliexpressRouter.get("/refresh", (_req, res) => {
-  res.json({ ok: true });
-  refreshIfNeeded().catch((e) =>
-    console.error("[AliExpress] Background refresh failed:", e)
-  );
+/* ---------- /ali/refresh : run refresh synchronously ---------- */
+aliexpressRouter.get("/refresh", async (_req, res) => {
+  try {
+    await refreshIfNeeded(); // keep lambda alive until done
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[AliExpress] Refresh endpoint error:", e);
+    res.status(500).json({ ok: false });
+  }
 });
 
 /* ---------- /redeploy (same logic) ---------- */
