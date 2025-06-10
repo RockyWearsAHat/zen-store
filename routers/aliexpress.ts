@@ -3,6 +3,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 // --- add express-session ---
 import session from "express-session";
+import { connectDB } from "../server/db";
 
 // --- Add this block to extend session type ---
 declare module "express-session" {
@@ -356,7 +357,7 @@ aliexpressRouter.get(
       const expiresAt = pickExpiry(responseData);
 
       // Ensure database is connected before writing tokens
-      // await connectDB();
+      await connectDB();
 
       const savedToken = await AliToken.findOneAndUpdate(
         {},
@@ -434,9 +435,12 @@ function signAliExpressRequest(
 }
 
 // ---------------- getAliAccessToken ----------------
-async function getAliAccessToken(forceRefresh = false): Promise<string> {
+async function getAliAccessToken(
+  forceRefresh = false,
+  skipDB = false // ← new flag
+): Promise<string> {
   try {
-    // await connectDB();
+    if (!skipDB) await connectDB();
     let tokenDoc = await AliToken.findOne().exec();
     if (!tokenDoc?.access_token) throw new Error("AliExpress token missing");
 
@@ -537,10 +541,10 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
 /* ---------- atomic refresh runner (3-day rule + 10-s lock) ---------- */
 async function refreshIfNeeded(): Promise<void> {
   const now = Date.now();
-  const lockThreshold = new Date(now - THROTTLE_MS); // >10 s ago
-  const expThreshold = new Date(now + THREE_DAYS); // expires ≤3 d
+  const lockThreshold = new Date(now - THROTTLE_MS);
+  const expThreshold = new Date(now + THREE_DAYS);
 
-  // await connectDB();
+  await connectDB(); // single DB connect for the run
 
   // 1️⃣  Atomically reserve the refresh only when BOTH rules match
   const doc = await AliToken.findOneAndUpdate(
@@ -571,7 +575,7 @@ async function refreshIfNeeded(): Promise<void> {
   // 2️⃣ Perform the real AliExpress refresh (forced)
   try {
     console.log("Attempting to refresh token from /refresh route");
-    await getAliAccessToken(true);
+    await getAliAccessToken(true, true); // skip second connectDB()
     // success → last_refresh_at already set to now by the lock
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);

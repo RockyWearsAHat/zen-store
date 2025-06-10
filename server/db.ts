@@ -10,9 +10,11 @@ let cachedConnection: typeof mongoose | null = null;
 
 export async function connectDB() {
   // Re-use only when connection is really open
+  // Re-use while connected (1) **or** still connecting (2)
   if (
     cachedConnection &&
-    cachedConnection.connection.readyState === 1 /* connected */
+    (cachedConnection.connection.readyState === 1 ||
+      cachedConnection.connection.readyState === 2)
   ) {
     return cachedConnection;
   }

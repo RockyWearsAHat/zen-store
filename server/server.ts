@@ -4,9 +4,6 @@ import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
 
-import { connectDB } from "../server/db";
-connectDB(); //Connect to MongoDB
-
 export const app = express();
 
 // 1️⃣ Mount Stripe webhook route FIRST, before any body parser
