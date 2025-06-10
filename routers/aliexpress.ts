@@ -540,6 +540,7 @@ async function refreshIfNeeded(): Promise<void> {
   const now = Date.now();
   const threeDaysMs = THREE_DAYS;
   const tooOld = new Date(now - THROTTLE_MS); // >10 s ago
+  if (!tooOld) return;
   const soonExp = new Date(now + threeDaysMs); // expires ≤3 d
 
   await connectDB();
@@ -547,19 +548,9 @@ async function refreshIfNeeded(): Promise<void> {
   // 1️⃣  reserve the run if criteria match
   const doc = await AliToken.findOneAndUpdate(
     {
-      $and: [
-        {
-          $or: [
-            { access_token: { $exists: false } },
-            { expires_at: { $lt: soonExp } }, // expires within 3 days
-          ],
-        },
-        {
-          $or: [
-            { last_refresh_at: { $exists: false } },
-            { last_refresh_at: { $lt: tooOld } }, // >10 s since last run
-          ],
-        },
+      $or: [
+        { access_token: { $exists: false } },
+        { expires_at: { $lt: soonExp } }, // expires within 3 days
       ],
     },
     { last_refresh_at: new Date(now) }, // take the slot
@@ -574,11 +565,7 @@ async function refreshIfNeeded(): Promise<void> {
     await getAliAccessToken(true);
   } catch (err) {
     console.error("[AliExpress] refresh failed:", err);
-    // allow another attempt after 1 s if this run failed
-    await AliToken.updateOne(
-      {},
-      { last_refresh_at: new Date(now - 1000) }
-    ).exec();
+    return;
   }
 }
 
