@@ -646,7 +646,8 @@ async function getAliAccessToken(
       throw new Error("No refresh_token available to refresh.");
 
     /* ---------- build body exactly like /oauth/callback ---------- */
-    const ts = topTimestamp(); // ← formatted timestamp
+    const ts = Date.now().toString(); // OAuth expects epoch-ms
+
     const base = {
       app_key: APP_KEY,
       client_secret: APP_SECRET,
