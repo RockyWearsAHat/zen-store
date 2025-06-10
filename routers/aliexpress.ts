@@ -99,8 +99,6 @@ const REFRESH_TOKEN_ENDPOINT = // Added for refresh token
 const ONE_MIN = 60_000;
 const ONE_DAY = 24 * 60 * ONE_MIN;
 const THREE_DAYS = 3 * ONE_DAY; // ← new buffer
-// const REFRESH_TIMEOUT_MS = 8_000; // first try
-// const REFRESH_TIMEOUT_MS2 = 20_000; // second, longer retry
 const THROTTLE_MS = 10_000; // ← min gap between real AliExpress calls
 
 /* ---------- helpers ---------- */
@@ -508,13 +506,20 @@ async function getAliAccessToken(forceRefresh = false): Promise<string> {
       throw new Error("REFRESH_REJECTED");
     }
 
+    /* ---------- sanity-check tokens ---------- */
+    if (json.refresh_token && json.refresh_token === json.access_token) {
+      console.warn(
+        "[AliExpress] refresh_token equals access_token – keeping previous refresh_token to avoid corruption."
+      );
+      json.refresh_token = undefined; // fall back to old value below
+    }
+
     /* ---------- persist ---------- */
     const newExp = pickExpiry(json);
     const update: Record<string, any> = {
       expires_at: newExp,
-      // access_token | refresh_token might be null in test mode – keep old ones if so
-      access_token: json.access_token || tokenDoc!.access_token,
-      refresh_token: json.refresh_token || tokenDoc!.refresh_token,
+      access_token: json.access_token || tokenDoc.access_token,
+      refresh_token: json.refresh_token || tokenDoc.refresh_token,
     };
 
     tokenDoc = await AliToken.findOneAndUpdate(
