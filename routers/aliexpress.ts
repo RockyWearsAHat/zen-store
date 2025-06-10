@@ -596,34 +596,27 @@ async function getAliOrderTracking(
 
 /* ────────────── AliExpress Dropshipping API Helpers ────────────── */
 
-// Helper: sign AliExpress API request (HMAC_SHA256, per new docs)
+// Helper: sign AliExpress API request
 function signAliExpressRequest(
-  apiPath: string, // e.g., /auth/token/create
-  params: Record<string, string>, // All request params except 'sign'
+  apiPath: string,
+  params: Record<string, string>,
   appSecret: string
 ): string {
   const sortedKeys = Object.keys(params).sort();
-
   let queryString = "";
-  for (const key of sortedKeys) {
-    // Ensure that only non-empty values are part of the query string,
-    // as per the Java example's `areNotEmpty(key, value)` check,
-    // though the primary rule is "all request parameters".
-    // For simplicity and to match the "concatenate sorted parameters and their values" rule,
-    // we'll include all provided params. If a param has an empty string value, it would be `key` followed by nothing.
-    // The example `bar=2, foo=1, foo_bar=3, foobar=` implies `foobar` had an empty value.
-    // Let's assume params will not have undefined/null values here.
-    queryString += key + params[key];
-  }
+  for (const k of sortedKeys) queryString += k + params[k];
 
-  // Prepend the API path for System Interfaces
-  const stringToSign = apiPath + queryString;
+  /* TOP spec: prefix & suffix secret for system-level (/sync) APIs */
+  const base =
+    apiPath === "/sync"
+      ? appSecret + apiPath + queryString + appSecret
+      : apiPath + queryString; // OAuth keeps the “new” rule
 
-  // console.log("[AliExpress Signature] String to sign:", stringToSign); // For debugging
-
-  const hmac = crypto.createHmac("sha256", appSecret);
-  hmac.update(stringToSign, "utf8");
-  return hmac.digest("hex").toUpperCase();
+  return crypto
+    .createHmac("sha256", appSecret)
+    .update(base, "utf8")
+    .digest("hex")
+    .toUpperCase();
 }
 
 /* -------------------- getAliAccessToken -------------------- */
