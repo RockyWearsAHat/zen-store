@@ -7,16 +7,15 @@ mongoose.set("bufferCommands", false);
 
 // Variable to cache the Mongoose connection
 let cachedConnection: typeof mongoose | null = null;
+let connecting: Promise<typeof mongoose> | null = null; // in-flight promise
 
 export async function connectDB() {
-  // Re-use only when connection is really open
-  // Re-use while connected (1) **or** still connecting (2)
-  if (
-    cachedConnection &&
-    (cachedConnection.connection.readyState === 1 ||
-      cachedConnection.connection.readyState === 2)
-  ) {
+  // ✅ reuse when connected or still connecting
+  if (cachedConnection && cachedConnection.connection.readyState === 1) {
     return cachedConnection;
+  }
+  if (connecting) {
+    return connecting; // awaiting the ongoing connect()
   }
 
   if (!process.env.MONGODB_URI) {
@@ -26,16 +25,21 @@ export async function connectDB() {
   }
 
   try {
-    // console.log("[MongoDB] Attempting to connect to database...");
-    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, {
-      // tune server selection to fail faster
-      serverSelectionTimeoutMS: 5_000,
-    });
-    console.log("[MongoDB] Database connected successfully");
-    return cachedConnection;
+    connecting = mongoose
+      .connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5_000 })
+      .then((conn) => {
+        cachedConnection = conn;
+        connecting = null;
+        return conn;
+      })
+      .catch((err) => {
+        connecting = null; // allow retry
+        throw err;
+      });
+    return await connecting;
   } catch (error) {
     console.error("[MongoDB] Database connection error:", error);
-    cachedConnection = null; // allow next call to retry
+    cachedConnection = null;
     throw error; // Re-throw the error to be caught by the caller
   }
 }
