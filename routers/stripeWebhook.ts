@@ -268,6 +268,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               ali.orderCost !== null && ali.orderCost !== undefined
                 ? String(ali.orderCost)
                 : "",
+            /* unify – use the AliExpress order-ID everywhere */
+            order_number: orderId,
           };
           /* persist metadata asynchronously (does not affect e-mail) */
           await stripe.paymentIntents.update(intent.id, {

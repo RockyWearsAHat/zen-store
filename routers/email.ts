@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
+import type { Attachment } from "nodemailer/lib/mailer"; // correct path
 // import path from "path";
 
 /* ─── SMTP transport───────────────────────────────────────── */
@@ -197,8 +198,9 @@ export async function sendSuccessEmail(
   // We'll use the PaymentIntent's id as a fallback, but if you want a shorter order number,
   // you can generate one and store it in intent.metadata.order_number.
   // We'll check for metadata.order_number first:
+  /* prefer the AliExpress order-ID (ali_order_id), then order_number, fallback to PI id */
   const orderNumber =
-    (intent.metadata && intent.metadata.order_number) || intent.id;
+    intent.metadata?.ali_order_id ?? intent.metadata?.order_number ?? intent.id;
 
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber =
@@ -210,10 +212,11 @@ export async function sendSuccessEmail(
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapHtml = "";
+  const attachments: Attachment[] = []; // ← collect inline images
+
   if (mapsKey && trackingNumber) {
     const locRes = await getUPSLocation(trackingNumber).catch(() => null);
 
-    /* centre on UPS location when available, else on the shipping address */
     const center = encodeURIComponent(
       locRes?.marker ||
         [addr.city, addr.state, addr.country].filter(Boolean).join(", ") ||
@@ -227,17 +230,34 @@ export async function sendSuccessEmail(
       (locRes?.marker ? `&markers=color:red|${locRes.marker}` : "") +
       `&key=${mapsKey}`;
 
-    mapHtml = `
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0"
-             style="width:100%;border-collapse:collapse;margin:24px 0 0 0;">
-        <tr>
-          <td style="padding:0;text-align:left;">
-            <img src="${staticUrl}"
-                 alt="Package current location"
-                 style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;">
-          </td>
-        </tr>
-      </table>`;
+    try {
+      /* fetch the PNG so it can be embedded */
+      const imgRes = await fetch(staticUrl);
+      if (imgRes.ok) {
+        const mapBuffer = Buffer.from(await imgRes.arrayBuffer());
+        const cid = `map-${trackingNumber}@zen`;
+        attachments.push({
+          filename: "map.png",
+          content: mapBuffer,
+          cid,
+        });
+        mapHtml = `
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                 style="width:100%;border-collapse:collapse;margin:24px 0 0 0;">
+            <tr>
+              <td style="padding:0;text-align:left;">
+                <img src="cid:${cid}"
+                     alt="Package current location"
+                     style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;">
+              </td>
+            </tr>
+          </table>`;
+      } else {
+        console.warn("Static map fetch failed:", imgRes.status);
+      }
+    } catch (e) {
+      console.error("Map download error:", e);
+    }
   }
 
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
@@ -385,10 +405,11 @@ We appreciate your business!
     to,
     subject: "Your Zen Essentials order is confirmed",
     html,
-    text, // plain‑text part
+    text,
     headers: {
-      "List-Unsubscribe": "<mailto:unsubscribe@zen‑essentials.store>",
+      "List-Unsubscribe": "<mailto:unsubscribe@zen-essentials.store>",
     },
+    attachments, // ← embed map if we have it
   });
 }
 
