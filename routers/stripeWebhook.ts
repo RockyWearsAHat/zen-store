@@ -72,20 +72,55 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         const stripeShip =
           intent.shipping as Stripe.PaymentIntent.Shipping | null;
 
-        /* ---------- normalise ---------- */
-        const initialShipping: any =
-          metaShip ??
-          (stripeShip?.address && {
-            address: stripeShip.address.line1,
-            address2: stripeShip.address.line2 ?? "",
-            city: stripeShip.address.city ?? "",
-            country: stripeShip.address.country ?? "",
-            province: stripeShip.address.state ?? "",
-            zip: stripeShip.address.postal_code ?? "",
-            contact_person: stripeShip.name ?? "",
-          });
+        /* ---------- helper to flatten any Stripe-style object ---------- */
+        const toAliAddress = (src: any): any => {
+          if (!src) return null;
 
-        /* ------- ensure mandatory keys & mapping -------- */
+          // Stripe’s intent.shipping shape → flatten
+          if (src.address) {
+            const a = src.address;
+            return {
+              address: a.line1 ?? "",
+              address2: a.line2 ?? "",
+              city: a.city ?? "",
+              country: a.country ?? "",
+              province: a.state ?? "",
+              zip: a.postal_code ?? "",
+              contact_person: src.name ?? "",
+            };
+          }
+
+          // Already nearly flat (metadata case)
+          return {
+            address: src.address ?? "",
+            address2: src.address2 ?? "",
+            city: src.city ?? "",
+            country: src.country ?? "",
+            province: src.province ?? src.state ?? "",
+            zip: src.zip ?? src.postal_code ?? "",
+            contact_person: src.contact_person ?? src.name ?? "",
+          };
+        };
+
+        const initialShipping =
+          toAliAddress(metaShip) || toAliAddress(stripeShip);
+
+        console.log("[AliExpress] raw meta shipping:", metaShip);
+        console.log("[AliExpress] raw stripe shipping:", stripeShip);
+        console.log("[AliExpress] normalised shipping:", initialShipping);
+
+        if (
+          !initialShipping ||
+          !initialShipping.address ||
+          !initialShipping.city ||
+          !initialShipping.country ||
+          !initialShipping.province ||
+          !initialShipping.zip
+        ) {
+          console.error("❌ AliExpress order skipped – incomplete address");
+          return;
+        }
+
         const shipping = initialShipping
           ? {
               address: initialShipping.address,
