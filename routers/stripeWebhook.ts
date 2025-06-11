@@ -103,8 +103,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               province: a.state ?? "",
               zip: a.postal_code ?? "",
               contact_person: src.name ?? "",
-              phone_country: "+1", // ← NEW, digits only
-              phone_number: "435-741-7654",
+              phone_country: "1", // ← NEW, digits only
+              mobile_no: "4357317654",
             };
           }
 
