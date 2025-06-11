@@ -528,11 +528,27 @@ export async function createAliExpressOrder(
     })
   );
 
+  /* ---------- sanitise / flatten shipping ---------- */
+  const flatShip = (() => {
+    const s = shipping || {};
+    return {
+      address: s.address ?? "",
+      address2: s.address2 ?? "",
+      city: s.city ?? "",
+      country: s.country ?? "",
+      province: s.province ?? "",
+      zip: s.zip ?? "",
+      contact_person: s.contact_person ?? "",
+      phone_country: s.phone_country ?? "1",
+      mobile_no: s.mobile_no ?? "",
+    };
+  })();
+
   /* ---------- business parameters ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,
-    logistics_address: [shipping],
-    product_items: filledItems, // ← use list with services
+    logistics_address: [flatShip], // ← use cleaned object
+    product_items: filledItems,
   };
 
   const dsExtendRequest = {
