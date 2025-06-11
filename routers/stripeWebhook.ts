@@ -61,10 +61,11 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         const raw = JSON.parse(intent.metadata.items ?? "[]");
         const itemsForAli = await Promise.all(
           raw.map(async (i: any) => {
-            let sku = i.sku_attr ?? "";
+            /* catalogue already provides skuAttr */
+            let sku = i.skuAttr ?? i.sku_attr ?? "";
+
             if (!sku) {
               try {
-                // country needed for product.get
                 const shipTo =
                   intent.shipping?.address?.country ??
                   intent.metadata?.shipping_country ??
@@ -74,6 +75,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
                 console.error("SKU fetch failed for", i.aliId, e);
               }
             }
+
             return { id: i.aliId, quantity: i.quantity, sku_attr: sku };
           })
         );
