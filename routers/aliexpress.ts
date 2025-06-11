@@ -480,6 +480,7 @@ export async function createAliExpressOrder(
     /* Promotion block — promotion_channel_info is *required* */
     promotion: {
       promotion_code: "",
+      promotion_channel_info: "DS",
     },
     /* Payment block */
     payment: {
