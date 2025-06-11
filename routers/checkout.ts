@@ -12,7 +12,8 @@ const catalogue: Record<
   "desktop-fountain": {
     title: "ZenFlow™ Desktop Fountain",
     price: 109.99,
-    aliId: "3256808853336519", // ← new
+    // aliId: "3256808853336519", // ← new
+    aliId: "3256807185796326",
   },
   // add more products here…
 };
