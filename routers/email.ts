@@ -213,10 +213,17 @@ export async function sendSuccessEmail(
   if (mapsKey && trackingNumber) {
     const locRes = await getUPSLocation(trackingNumber).catch(() => null);
 
-    /* build URL – include marker only when UPS returned one */
+    /* centre on UPS location when available, else on the shipping address */
+    const center = encodeURIComponent(
+      locRes?.marker ||
+        [addr.city, addr.state, addr.country].filter(Boolean).join(", ") ||
+        "United States"
+    );
+
     const staticUrl =
       `https://maps.googleapis.com/maps/api/staticmap` +
       `?size=600x320&scale=2&zoom=4` +
+      `&center=${center}` +
       (locRes?.marker ? `&markers=color:red|${locRes.marker}` : "") +
       `&key=${mapsKey}`;
 
