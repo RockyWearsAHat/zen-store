@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js";
-import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress"; // ← NEW
+import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -64,7 +64,12 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             let sku = i.sku_attr ?? "";
             if (!sku) {
               try {
-                sku = await fetchSkuAttr(Number(i.aliId));
+                // country needed for product.get
+                const shipTo =
+                  intent.shipping?.address?.country ??
+                  intent.metadata?.shipping_country ??
+                  "US";
+                sku = await fetchSkuAttr(Number(i.aliId), shipTo);
               } catch (e) {
                 console.error("SKU fetch failed for", i.aliId, e);
               }

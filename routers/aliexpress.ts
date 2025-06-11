@@ -802,10 +802,13 @@ function requireAliInitAllowed(
 
 const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
 
-/* ---------- fetchSkuAttr : call aliexpress.ds.sku.get -------------------- */
-export async function fetchSkuAttr(productId: number): Promise<string> {
+/* ---------- fetchSkuAttr : call aliexpress.ds.product.get ------------- */
+export async function fetchSkuAttr(
+  productId: number,
+  shipToCountry = "US"
+): Promise<string> {
   const accessToken = await getAliAccessToken();
-  const method = "aliexpress.ds.sku.get";
+  const method = "aliexpress.ds.product.get";
   const apiPath = "/sync";
 
   const sysParams: Record<string, string> = {
@@ -816,6 +819,10 @@ export async function fetchSkuAttr(productId: number): Promise<string> {
     sign_method: "sha256",
     v: "2.0",
     product_id: String(productId),
+    ship_to_country: shipToCountry,
+    target_currency: "USD",
+    target_language: "en",
+    remove_personal_benefit: "false",
   };
 
   const sign = signAliExpressRequest(apiPath, sysParams, APP_SECRET);
@@ -829,10 +836,12 @@ export async function fetchSkuAttr(productId: number): Promise<string> {
 
   const json: any = JSON.parse(raw);
   const list =
-    json?.aliexpress_ds_sku_get_response?.result?.product_sku_info_list
-      ?.product_sku_info ?? [];
+    json?.result?.ae_item_sku_info_dtos ??
+    json?.aliexpress_ds_product_get_response?.result?.ae_item_sku_info_dtos ??
+    [];
 
   console.log("[AliExpress] SKU list for", productId, "→", list);
 
+  // if only one SKU exists the spec says it can be ""
   return list[0]?.sku_attr ?? "";
 }
