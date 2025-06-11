@@ -471,8 +471,7 @@ export async function createAliExpressOrder(
       product_count:
         process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
       sku_attr: i.sku_attr ?? "",
-      logistics_service_name: "",
-      order_memo: " ",
+      logistics_service_name: "Zen Essentials",
     })),
   };
 
@@ -480,17 +479,12 @@ export async function createAliExpressOrder(
     /* Promotion block — promotion_channel_info is *required* */
     promotion: {
       promotion_code: "",
-      promotion_channel_info: "DS", // “DS” recommended by docs
     },
     /* Payment block */
     payment: {
       pay_currency: "USD",
       try_to_pay:
         process.env.ALI_TEST_ENVIRONMENT === "true" ? "false" : "true",
-    },
-    /* Optional wholesale toggle (kept empty if not used) */
-    trade_extra_param: {
-      business_model: "retail",
     },
   };
 
