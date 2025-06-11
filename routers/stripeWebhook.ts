@@ -157,8 +157,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               province: a.state ?? "",
               zip: a.postal_code ?? "",
               contact_person: src.name ?? "",
-              phone_country: "+", // ← NEW, digits only
-              mobile_no: "4357317654",
+              // phone_country: "1", // digits only
+              // mobile_no: src.phone ?? "", // use Stripe phone if present
             };
           }
 
@@ -171,8 +171,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             province: src.province ?? src.state ?? "",
             zip: src.zip ?? src.postal_code ?? "",
             contact_person: src.contact_person ?? src.name ?? "",
-            phone_country: src.phone_country ?? "1", // ← ensure numeric
-            mobile_no: src.mobile_no ?? src.mobile_no ?? "",
+            // phone_country: src.phone_country ?? "1",
+            // mobile_no: src.mobile_no ?? src.phone_number ?? "",
           };
         };
 
@@ -212,11 +212,24 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               address2: initialShipping.address2 ?? "",
               city: initialShipping.city,
               country: initialShipping.country,
-              province: initialShipping.province ?? initialShipping.state ?? "",
+              // ensure full state name for U S shipments
+              province:
+                initialShipping.country === "US"
+                  ? STATE_FULL[
+                      (
+                        initialShipping.province ??
+                        initialShipping.state ??
+                        ""
+                      ).toUpperCase() as keyof typeof STATE_FULL
+                    ] ??
+                    initialShipping.province ??
+                    initialShipping.state ??
+                    ""
+                  : initialShipping.province ?? initialShipping.state ?? "",
               zip: initialShipping.zip,
               contact_person: initialShipping.contact_person ?? "",
-              phone_country: initialShipping.phone_country ?? "1", // ← keep numeric
-              mobile_no: initialShipping.mobile_no ?? "",
+              // phone_country: initialShipping.phone_country ?? "1",
+              // mobile_no: initialShipping.mobile_no ?? "",
             }
           : null;
 

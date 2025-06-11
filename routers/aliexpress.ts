@@ -423,6 +423,52 @@ function topTimestamp(): string {
   );
 }
 
+/* ---------- fetchRecommendedService : aliexpress.logistics.ds.recommend.list --- */
+const svcCache = new Map<string, string>();
+
+async function fetchRecommendedService(
+  productId: number,
+  skuAttr: string,
+  country: string,
+  province: string
+): Promise<string> {
+  const key = `${productId}|${skuAttr}|${country}|${province}`;
+  if (svcCache.has(key)) return svcCache.get(key)!;
+
+  const accessToken = await getAliAccessToken();
+  const apiPath = "/sync";
+  const method = "aliexpress.logistics.ds.recommend.list";
+  const params: Record<string, string> = {
+    app_key: APP_KEY,
+    method,
+    access_token: accessToken,
+    timestamp: topTimestamp(),
+    sign_method: "sha256",
+    v: "2.0",
+    product_id: String(productId),
+    sku_attr: skuAttr,
+    country_code: country,
+    province,
+  };
+  const sign = signAliExpressRequest(apiPath, params, APP_SECRET);
+  const body = new URLSearchParams({ ...params, sign }).toString();
+
+  const raw = await fetch(`${ALI_BASE_URL}${apiPath}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }).then((r) => r.text());
+
+  const json: any = JSON.parse(raw);
+  const svc =
+    json?.aliexpress_logistics_ds_recommend_list_response?.result
+      ?.recommend_solutions?.recommend_solution?.[0]?.logistics_service_name ??
+    "";
+  if (svc) svcCache.set(key, svc);
+  console.log("[AliExpress] recommend service for", key, "→", svc || "—");
+  return svc || "CAINIAO_STANDARD";
+}
+
 /* ---------- createAliExpressOrder ----------------------------------------- */
 export interface AliItem {
   id: string | number;
@@ -464,16 +510,29 @@ export async function createAliExpressOrder(
 
   console.log("[AliExpress] shipping received:", shipping);
 
+  /* ---------- ensure logistics_service_name for every item ------------- */
+  const filledItems = await Promise.all(
+    items.map(async (i) => {
+      const svc = await fetchRecommendedService(
+        Number(i.id),
+        i.sku_attr ?? "",
+        shipping.country,
+        shipping.province
+      );
+      return {
+        product_id: Number(i.id),
+        product_count: i.quantity ?? 1,
+        sku_attr: i.sku_attr ?? "",
+        logistics_service_name: svc,
+      };
+    })
+  );
+
   /* ---------- business parameters ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,
-    logistics_address: [shipping], // ← must be list
-    product_items: items.map((i: AliItem) => ({
-      product_id: Number(i.id),
-      product_count: i.quantity ?? 1,
-      sku_attr: i.sku_attr ?? "",
-      logistics_service_name: "Zen Essentials",
-    })),
+    logistics_address: [shipping],
+    product_items: filledItems, // ← use list with services
   };
 
   const dsExtendRequest = {
