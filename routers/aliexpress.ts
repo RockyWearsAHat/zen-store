@@ -601,24 +601,25 @@ function signAliExpressRequest(
   rawParams: Record<string, any>,
   appSecret: string
 ): string {
-  /* 1 — build a flat Record<string,string> without sign / null / undefined */
+  // 1) drop sign / null / undefined
   const params: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawParams)) {
     if (k === "sign" || v === undefined || v === null) continue;
-    params[k] = String(v); // keep empty-string values!
+    params[k] = String(v); // keep empty-string values
   }
 
-  /* 2 — ASCII sort */
+  // 2) ASCII sort
   const sortedKeys = Object.keys(params).sort();
 
-  /* 3 — concat key+value */
+  // 3) concat key+value
   let concatenated = "";
   for (const k of sortedKeys) concatenated += k + params[k];
 
-  /* 4 — prepend apiPath (System Interface rule) */
-  const stringToSign = apiPath + concatenated;
+  // 4) prepend API name ONLY for system interfaces (≠ /sync)
+  const stringToSign =
+    apiPath === "/sync" ? concatenated : apiPath + concatenated;
 
-  /* 5 — HMAC-SHA256, upper-hex */
+  // 5) HMAC-SHA256 -> upper hex
   return crypto
     .createHmac("sha256", appSecret)
     .update(stringToSign, "utf8")
