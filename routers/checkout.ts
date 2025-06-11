@@ -192,9 +192,10 @@ router.post(
     // add title & aliId → stored in PI.metadata.items
     const itemsForMeta = items.map((i: any) => ({
       id: i.id,
-      aliId: catalogue[i.id]?.aliId, // always include aliId for order
+      aliId: catalogue[i.id]?.aliId,
       title: catalogue[i.id]?.title ?? i.id,
       quantity: i.quantity,
+      skuAttr: catalogue[i.id]?.skuAttr ?? "", // ← keep original camel-case
     }));
 
     // calculate tax and fees
