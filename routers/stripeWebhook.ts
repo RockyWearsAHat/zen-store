@@ -66,9 +66,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         }));
 
         // build shipping object
-        const shippingMeta = intent.metadata.shipping
+        const shippingMetaRaw = intent.metadata.shipping
           ? JSON.parse(intent.metadata.shipping)
           : null;
+
+        // normalise meta so that province is present
+        const shippingMeta =
+          shippingMetaRaw && !shippingMetaRaw.province && shippingMetaRaw.state
+            ? { ...shippingMetaRaw, province: shippingMetaRaw.state }
+            : shippingMetaRaw;
 
         const stripeShip =
           intent.shipping as Stripe.PaymentIntent.Shipping | null;
@@ -83,9 +89,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
                 contact_person: stripeShip.name ?? "",
                 country: stripeShip.address.country ?? "",
                 mobile_no: stripeShip.phone ?? "",
-                phone_country: "+", // Stripe phone is full; keep “+” for now
+                phone_country: "+",
                 phone_number: stripeShip.phone ?? "",
-                province: stripeShip.address.state ?? "",
+                province: stripeShip.address.state ?? "", // ← ensure province
                 zip: stripeShip.address.postal_code ?? "",
               }
             : null);
