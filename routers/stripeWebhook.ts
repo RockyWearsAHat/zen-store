@@ -286,7 +286,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             intent,
             email,
             charge,
-            paymentMethod // ← removed trackingNumber argument
+            paymentMethod,
+            trackingNumber // ← pass through
           );
         } else if (!orderId) {
           console.warn("Skipping success email – AliExpress order not created");

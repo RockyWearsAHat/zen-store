@@ -159,7 +159,8 @@ export async function sendSuccessEmail(
   intent: Stripe.PaymentIntent,
   to: string,
   chargeParam?: Stripe.Charge | null,
-  paymentMethod?: Stripe.PaymentMethod | null
+  paymentMethod?: Stripe.PaymentMethod | null,
+  explicitTracking?: string | null // ← NEW
 ): Promise<void> {
   const {
     subtotal = 0,
@@ -204,7 +205,8 @@ export async function sendSuccessEmail(
 
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber =
-    (intent.metadata && intent.metadata.ali_tracking) || "";
+    explicitTracking ??
+    ((intent.metadata && intent.metadata.ali_tracking) || "");
   const trackBaseUrl = trackingNumber
     ? `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`
     : "#";
