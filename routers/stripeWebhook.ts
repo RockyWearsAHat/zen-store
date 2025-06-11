@@ -229,7 +229,12 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               zip: initialShipping.zip,
               contact_person: initialShipping.contact_person ?? "",
               phone_country: initialShipping.phone_country ?? "1",
-              mobile_no: initialShipping.mobile_no ?? "4357317654",
+              /* guarantee a non-empty mobile_no (digits only) */
+              mobile_no:
+                initialShipping.mobile_no &&
+                initialShipping.mobile_no.replace(/\D/g, "").length > 3
+                  ? initialShipping.mobile_no.replace(/\D/g, "")
+                  : "4357317654",
             }
           : null;
 
