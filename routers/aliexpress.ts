@@ -462,13 +462,17 @@ export async function createAliExpressOrder(
     throw new Error("createAliExpressOrder: shipping address missing/invalid");
   }
 
+  console.log(items);
+
   /* ---------- business parameters ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,
     logistics_address: [shipping], // ← must be list
-    product_items: items.map((i) => ({
+    product_items: items.map((i: any) => ({
       product_id: Number(i.id),
-      product_count: i.quantity,
+      product_count: Number(
+        i.quantity ?? i.product_count ?? i.count ?? 1 // ← robust fallback
+      ),
       sku_attr: i.sku_attr ?? "",
       logistics_service_name: "Zen Essentials",
     })),

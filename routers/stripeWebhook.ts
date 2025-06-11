@@ -61,8 +61,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         const raw = JSON.parse(intent.metadata.items ?? "[]");
         const itemsForAli = raw.map((i: any) => ({
           id: i.aliId,
-          quantity:
-            process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+          quantity: i.quantity,
           sku_attr: i.sku_attr ?? "",
         }));
 
