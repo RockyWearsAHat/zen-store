@@ -259,12 +259,19 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           orderId = ali.orderId;
           trackingNumber = ali.trackingNumber;
 
+          /* make tracking number immediately visible to e-mail helper */
+          intent.metadata = {
+            ...intent.metadata,
+            ali_order_id: orderId,
+            ali_tracking: trackingNumber ?? "",
+            ali_cost_usd:
+              ali.orderCost !== null && ali.orderCost !== undefined
+                ? String(ali.orderCost)
+                : "",
+          };
+          /* persist metadata asynchronously (does not affect e-mail) */
           await stripe.paymentIntents.update(intent.id, {
-            metadata: {
-              ali_order_id: orderId,
-              ali_tracking: trackingNumber,
-              ali_cost_usd: ali.orderCost ?? "",
-            },
+            metadata: intent.metadata,
           });
           console.log("📦 AliExpress order placed:", orderId);
         } catch (err) {

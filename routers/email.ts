@@ -120,10 +120,7 @@ export async function getUPSLocation(trackingNumber: string): Promise<{
 
     /* 2️⃣  Tracking details */
     const trackRes = await fetch(
-      `https://${
-        // !process.env["VITE"] ? `onlinetools` : `wwwcie`
-        "wwwcie"
-      }.ups.com/api/track/v1/details/${trackingNumber}`,
+      `https://onlinetools.ups.com/api/track/v1/details/${trackingNumber}`,
       {
         headers: {
           Authorization: `Bearer ${access_token}`,
@@ -207,7 +204,7 @@ export async function sendSuccessEmail(
   const trackingNumber =
     (intent.metadata && intent.metadata.ali_tracking) || ""; // ← no DEMO default
   const trackBaseUrl = trackingNumber
-    ? `https://parcelsapp.com/en/tracking/${trackingNumber}`
+    ? `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`
     : "#";
 
   /* ─── static Google Maps image (embedded) ─── */
@@ -325,7 +322,7 @@ export async function sendSuccessEmail(
                   ? `<td style="padding:0 6px 0 0;">
                        <img src="${iconUrl}?v=${brand}"
                             alt="${brand} logo" width="24" height="15"
-                            style="display:block;width:24px;height:15px;border:0;outline:0;vertical-align:middle;">
+                            style="display:block;width=24px;height=15px;border:0;outline:0;vertical-align:middle;">
                      </td>`
                   : ""
               }
