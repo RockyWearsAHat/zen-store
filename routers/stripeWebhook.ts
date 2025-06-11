@@ -229,7 +229,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               zip: initialShipping.zip,
               contact_person: initialShipping.contact_person ?? "",
               phone_country: initialShipping.phone_country ?? "1",
-              mobile_no: initialShipping.mobile_no ?? "",
+              mobile_no: initialShipping.mobile_no ?? "4357317654",
             }
           : null;
 
