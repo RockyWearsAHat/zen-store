@@ -206,16 +206,28 @@ export async function sendSuccessEmail(
   const trackingNumber =
     (intent.metadata && intent.metadata.ali_tracking) || "";
   const trackBaseUrl = trackingNumber
-    ? `https://www.ups.com/track?tracknum=${trackingNumber}`
+    ? `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`
     : "#";
 
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
+  /* ── log context ───────────────────── */
+  const mask = (s?: string) => (s ? s.slice(0, 6) + "…" : "(unset)");
+  console.log("[e-mail] map context", {
+    trackingNumber,
+    mapsKey: mask(mapsKey),
+  });
+
   let mapHtml = "";
   const attachments: Attachment[] = []; // ← collect inline images
 
   if (mapsKey && trackingNumber) {
-    const locRes = await getUPSLocation(trackingNumber).catch(() => null);
+    const locRes = await getUPSLocation(trackingNumber).catch((e) => {
+      console.error("[e-mail] UPS location lookup failed:", e);
+      return null;
+    });
+
+    console.log("[e-mail] UPS location response:", locRes || "—");
 
     /* build marker/centre – always have one */
     const fallbackAddress =
@@ -230,6 +242,8 @@ export async function sendSuccessEmail(
       `&center=${chosenMarker}` +
       `&markers=color:${markerColor}|${chosenMarker}` +
       `&key=${mapsKey}`;
+
+    console.log("[e-mail] Google Static Maps URL:", staticUrl);
 
     try {
       /* fetch the PNG so it can be embedded */
@@ -253,12 +267,22 @@ export async function sendSuccessEmail(
               </td>
             </tr>
           </table>`;
+        console.log("[e-mail] Map image embedded (cid:", cid, ")");
       } else {
-        console.warn("Static map fetch failed:", imgRes.status);
+        console.warn(
+          "Static map fetch failed:",
+          imgRes.status,
+          await imgRes.text().catch(() => "")
+        );
       }
     } catch (e) {
       console.error("Map download error:", e);
     }
+  } else {
+    console.log(
+      "[e-mail] Map skipped –",
+      !mapsKey ? "GOOGLE_MAPS_KEY not set" : "trackingNumber empty"
+    );
   }
 
   /* ---------- items table (thumbnail + title perfectly centred) ---------- */
@@ -412,6 +436,12 @@ We appreciate your business!
     },
     attachments, // ← embed map if we have it
   });
+
+  console.log(
+    `[e-mail] Confirmation sent to ${to} with`,
+    attachments.length,
+    "inline attachment(s)"
+  );
 }
 
 export async function sendFailureEmail(
