@@ -468,8 +468,7 @@ export async function createAliExpressOrder(
     logistics_address: [shipping], // ← must be list
     product_items: items.map((i) => ({
       product_id: Number(i.id),
-      product_count:
-        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+      product_count: i.quantity,
       sku_attr: i.sku_attr ?? "",
       logistics_service_name: "Zen Essentials",
     })),
