@@ -801,3 +801,38 @@ function requireAliInitAllowed(
 }
 
 const ALI_INIT_ALLOWED = process.env.ALLOW_ALI_INITIALIZATION === "true";
+
+/* ---------- fetchSkuAttr : call aliexpress.ds.sku.get -------------------- */
+export async function fetchSkuAttr(productId: number): Promise<string> {
+  const accessToken = await getAliAccessToken();
+  const method = "aliexpress.ds.sku.get";
+  const apiPath = "/sync";
+
+  const sysParams: Record<string, string> = {
+    app_key: APP_KEY,
+    method,
+    access_token: accessToken,
+    timestamp: topTimestamp(),
+    sign_method: "sha256",
+    v: "2.0",
+    product_id: String(productId),
+  };
+
+  const sign = signAliExpressRequest(apiPath, sysParams, APP_SECRET);
+  const body = new URLSearchParams({ ...sysParams, sign }).toString();
+
+  const raw = await fetch(`${ALI_BASE_URL}${apiPath}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }).then((r) => r.text());
+
+  const json: any = JSON.parse(raw);
+  const list =
+    json?.aliexpress_ds_sku_get_response?.result?.product_sku_info_list
+      ?.product_sku_info ?? [];
+
+  console.log("[AliExpress] SKU list for", productId, "→", list);
+
+  return list[0]?.sku_attr ?? "";
+}

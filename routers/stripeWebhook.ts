@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js";
-import { createAliExpressOrder } from "./aliexpress"; // ← NEW
+import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress"; // ← NEW
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -59,11 +59,20 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       try {
         /* ---------- build AliExpress payload from PI metadata ---------- */
         const raw = JSON.parse(intent.metadata.items ?? "[]");
-        const itemsForAli = raw.map((i: any) => ({
-          id: i.aliId,
-          quantity: i.quantity,
-          sku_attr: i.sku_attr ?? "",
-        }));
+        const itemsForAli = await Promise.all(
+          raw.map(async (i: any) => {
+            let sku = i.sku_attr ?? "";
+            if (!sku) {
+              try {
+                sku = await fetchSkuAttr(Number(i.aliId));
+              } catch (e) {
+                console.error("SKU fetch failed for", i.aliId, e);
+              }
+            }
+            return { id: i.aliId, quantity: i.quantity, sku_attr: sku };
+          })
+        );
+        console.log("[AliExpress] final items with sku_attr:", itemsForAli);
 
         /* ---------- source shipping ---------- */
         const metaShip = intent.metadata.shipping
