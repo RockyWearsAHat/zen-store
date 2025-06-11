@@ -6,6 +6,60 @@ import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress";
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+/* ---------- US state map (abbr → full) ---------- */
+const STATE_FULL: Record<string, string> = {
+  AL: "Alabama",
+  AK: "Alaska",
+  AZ: "Arizona",
+  AR: "Arkansas",
+  CA: "California",
+  CO: "Colorado",
+  CT: "Connecticut",
+  DE: "Delaware",
+  FL: "Florida",
+  GA: "Georgia",
+  HI: "Hawaii",
+  ID: "Idaho",
+  IL: "Illinois",
+  IN: "Indiana",
+  IA: "Iowa",
+  KS: "Kansas",
+  KY: "Kentucky",
+  LA: "Louisiana",
+  ME: "Maine",
+  MD: "Maryland",
+  MA: "Massachusetts",
+  MI: "Michigan",
+  MN: "Minnesota",
+  MS: "Mississippi",
+  MO: "Missouri",
+  MT: "Montana",
+  NE: "Nebraska",
+  NV: "Nevada",
+  NH: "New Hampshire",
+  NJ: "New Jersey",
+  NM: "New Mexico",
+  NY: "New York",
+  NC: "North Carolina",
+  ND: "North Dakota",
+  OH: "Ohio",
+  OK: "Oklahoma",
+  OR: "Oregon",
+  PA: "Pennsylvania",
+  RI: "Rhode Island",
+  SC: "South Carolina",
+  SD: "South Dakota",
+  TN: "Tennessee",
+  TX: "Texas",
+  UT: "Utah",
+  VT: "Vermont",
+  VA: "Virginia",
+  WA: "Washington",
+  WV: "West Virginia",
+  WI: "Wisconsin",
+  WY: "Wyoming",
+};
+
 // Only apply basic JSON parsing to the webhook route
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -124,6 +178,17 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
         const initialShipping =
           toAliAddress(metaShip) || toAliAddress(stripeShip);
+
+        /* --- convert US state abbreviation to full name --- */
+        if (
+          initialShipping &&
+          initialShipping.country === "US" &&
+          initialShipping.province &&
+          initialShipping.province.length === 2
+        ) {
+          const full = STATE_FULL[initialShipping.province.toUpperCase()];
+          if (full) initialShipping.province = full;
+        }
 
         console.log("[AliExpress] raw meta shipping:", metaShip);
         console.log("[AliExpress] raw stripe shipping:", stripeShip);
