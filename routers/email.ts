@@ -46,7 +46,11 @@ function money(n: number): string {
 
 /* map card brand → remote 32 px PNG (Gmail blocks SVG) */
 function cardIconUrl(brand: string): string | undefined {
-  const base = (process.env.WEB_URL || "").replace(/\/+$/, "");
+  /* ensure absolute path even when WEB_URL is missing */
+  const base = (process.env.WEB_URL || "https://zen-essentials.store").replace(
+    /\/+$/,
+    ""
+  );
   switch (brand.toUpperCase()) {
     case "AMEX":
       return `${base}/amex.png`;
@@ -93,20 +97,6 @@ export async function getUPSLocation(trackingNumber: string): Promise<{
   label?: string;
   marker?: any;
 } | null> {
-  /* ---------- TEST shortcut ---------- */
-  if (
-    process.env.ALI_TEST_ENVIRONMENT === "true" ||
-    trackingNumber.startsWith("TEST-")
-  ) {
-    return {
-      lat: 40.6461,
-      lng: -111.498,
-      status: "Test-mode shipment",
-      label: "TEST",
-      marker: null,
-    };
-  }
-
   const id = process.env.UPS_CLIENT_ID;
   const secret = process.env.UPS_CLIENT_SECRET;
   if (!id || !secret) return null;
@@ -151,19 +141,13 @@ export async function getUPSLocation(trackingNumber: string): Promise<{
     const label = [addr.city, addr.stateProvince, addr.country]
       .filter(Boolean)
       .join(", ");
-    if (!label) return null;
-
+    if (!label) return null; // ← no label → no marker
     return { label, marker: encodeURIComponent(label) };
   } catch (err) {
     console.error("UPS tracking error:", err);
     return null;
   }
 }
-
-/* ---------- constants ---------- */
-const DEMO_UPS_NUMBER = "1Z12345E0205271688"; // kept as fallback
-const FALLBACK_LABEL = "United States";
-const FALLBACK_MARKER = encodeURIComponent("39.8283,-98.5795");
 
 /* absolute path to the on-disk product thumbnail (no remote fetch) */
 // const MAIN_IMG_PATH = path.resolve(__dirname, "../../public/Main.png");
@@ -221,27 +205,31 @@ export async function sendSuccessEmail(
 
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber =
-    (intent.metadata && intent.metadata.ali_tracking) || DEMO_UPS_NUMBER;
-  const trackBaseUrl = `https://parcelsapp.com/en/tracking/${trackingNumber}`;
+    (intent.metadata && intent.metadata.ali_tracking) || ""; // ← no DEMO default
+  const trackBaseUrl = trackingNumber
+    ? `https://parcelsapp.com/en/tracking/${trackingNumber}`
+    : "#";
 
   /* ─── static Google Maps image (embedded) ─── */
   const mapsKey = process.env.GOOGLE_MAPS_KEY;
   let mapHtml = "";
-  if (mapsKey) {
-    const locRes = await getUPSLocation(DEMO_UPS_NUMBER).catch(() => null);
-    const marker = locRes?.marker ?? FALLBACK_MARKER;
-    const label = locRes?.label ?? FALLBACK_LABEL;
+  if (mapsKey && trackingNumber) {
+    const locRes = await getUPSLocation(trackingNumber).catch(() => null);
 
+    /* build URL – include marker only when UPS returned one */
     const staticUrl =
       `https://maps.googleapis.com/maps/api/staticmap` +
-      `?size=600x320&scale=2&zoom=4&markers=color:red|${marker}&key=${mapsKey}`;
+      `?size=600x320&scale=2&zoom=4` +
+      (locRes?.marker ? `&markers=color:red|${locRes.marker}` : "") +
+      `&key=${mapsKey}`;
 
     mapHtml = `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"
              style="width:100%;border-collapse:collapse;margin:24px 0 0 0;">
         <tr>
           <td style="padding:0;text-align:left;">
-            <img src="${staticUrl}" alt="Package current location: ${label}"
+            <img src="${staticUrl}"
+                 alt="Package current location"
                  style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:0;text-decoration:none;">
           </td>
         </tr>
