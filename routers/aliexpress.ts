@@ -462,7 +462,7 @@ export async function createAliExpressOrder(
     throw new Error("createAliExpressOrder: shipping address missing/invalid");
   }
 
-  console.log(items);
+  console.log("[AliExpress] shipping received:", shipping);
 
   /* ---------- business parameters ---------- */
   const placeOrderDTO = {

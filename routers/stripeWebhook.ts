@@ -65,39 +65,48 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           sku_attr: i.sku_attr ?? "",
         }));
 
-        // build shipping object
-        const shippingMetaRaw = intent.metadata.shipping
+        /* ---------- source shipping ---------- */
+        const metaShip = intent.metadata.shipping
           ? JSON.parse(intent.metadata.shipping)
           : null;
-
-        // normalise meta so that province is present
-        const shippingMeta =
-          shippingMetaRaw && !shippingMetaRaw.province && shippingMetaRaw.state
-            ? { ...shippingMetaRaw, province: shippingMetaRaw.state }
-            : shippingMetaRaw;
-
         const stripeShip =
           intent.shipping as Stripe.PaymentIntent.Shipping | null;
 
-        const shipping =
-          shippingMeta ||
-          (stripeShip?.address
-            ? {
-                address: stripeShip.address.line1,
-                address2: stripeShip.address.line2 ?? "",
-                city: stripeShip.address.city ?? "",
-                contact_person: stripeShip.name ?? "",
-                country: stripeShip.address.country ?? "",
-                mobile_no: stripeShip.phone ?? "",
-                phone_country: "+",
-                phone_number: stripeShip.phone ?? "",
-                province: stripeShip.address.state ?? "", // ← ensure province
-                zip: stripeShip.address.postal_code ?? "",
-              }
-            : null);
+        /* ---------- normalise ---------- */
+        const initialShipping: any =
+          metaShip ??
+          (stripeShip?.address && {
+            address: stripeShip.address.line1,
+            address2: stripeShip.address.line2 ?? "",
+            city: stripeShip.address.city ?? "",
+            country: stripeShip.address.country ?? "",
+            province: stripeShip.address.state ?? "",
+            zip: stripeShip.address.postal_code ?? "",
+            contact_person: stripeShip.name ?? "",
+          });
 
-        if (!shipping) {
-          console.error("❌ AliExpress order skipped – no shipping address");
+        /* ------- ensure mandatory keys & mapping -------- */
+        const shipping = initialShipping
+          ? {
+              address: initialShipping.address,
+              address2: initialShipping.address2 ?? "",
+              city: initialShipping.city,
+              country: initialShipping.country,
+              province:
+                initialShipping.province ??
+                initialShipping.state ?? // fallback mapping
+                "",
+              zip: initialShipping.zip,
+              contact_person: initialShipping.contact_person ?? "",
+            }
+          : null;
+
+        /* ---------- debug output ---------- */
+        console.log("[AliExpress] original shipping meta:", initialShipping);
+        console.log("[AliExpress] final shipping object:", shipping);
+
+        if (!shipping || !shipping.province) {
+          console.error("❌ AliExpress order skipped – province missing");
           return;
         }
 
