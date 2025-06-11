@@ -103,7 +103,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               province: a.state ?? "",
               zip: a.postal_code ?? "",
               contact_person: src.name ?? "",
-              phone_country: "1", // ← NEW, digits only
+              phone_country: "+", // ← NEW, digits only
               mobile_no: "4357317654",
             };
           }
@@ -118,7 +118,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             zip: src.zip ?? src.postal_code ?? "",
             contact_person: src.contact_person ?? src.name ?? "",
             phone_country: src.phone_country ?? "1", // ← ensure numeric
-            phone_number: src.phone_number ?? src.mobile_no ?? "",
+            mobile_no: src.mobile_no ?? src.mobile_no ?? "",
           };
         };
 
@@ -151,7 +151,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               zip: initialShipping.zip,
               contact_person: initialShipping.contact_person ?? "",
               phone_country: initialShipping.phone_country ?? "1", // ← keep numeric
-              phone_number: initialShipping.phone_number ?? "",
+              mobile_no: initialShipping.mobile_no ?? "",
             }
           : null;
 
