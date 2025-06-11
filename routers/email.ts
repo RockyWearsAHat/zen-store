@@ -204,9 +204,9 @@ export async function sendSuccessEmail(
 
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber =
-    (intent.metadata && intent.metadata.ali_tracking) || ""; // ← no DEMO default
+    (intent.metadata && intent.metadata.ali_tracking) || "";
   const trackBaseUrl = trackingNumber
-    ? `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`
+    ? `https://www.ups.com/track?tracknum=${trackingNumber}`
     : "#";
 
   /* ─── static Google Maps image (embedded) ─── */
@@ -217,17 +217,18 @@ export async function sendSuccessEmail(
   if (mapsKey && trackingNumber) {
     const locRes = await getUPSLocation(trackingNumber).catch(() => null);
 
-    const center = encodeURIComponent(
-      locRes?.marker ||
-        [addr.city, addr.state, addr.country].filter(Boolean).join(", ") ||
-        "United States"
-    );
+    /* build marker/centre – always have one */
+    const fallbackAddress =
+      [addr.city, addr.state, addr.country].filter(Boolean).join(", ") ||
+      "United States";
+    const chosenMarker = locRes?.marker || encodeURIComponent(fallbackAddress);
+    const markerColor = locRes ? "red" : "gray";
 
     const staticUrl =
       `https://maps.googleapis.com/maps/api/staticmap` +
       `?size=600x320&scale=2&zoom=4` +
-      `&center=${center}` +
-      (locRes?.marker ? `&markers=color:red|${locRes.marker}` : "") +
+      `&center=${chosenMarker}` +
+      `&markers=color:${markerColor}|${chosenMarker}` +
       `&key=${mapsKey}`;
 
     try {
