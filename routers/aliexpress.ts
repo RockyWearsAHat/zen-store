@@ -458,14 +458,18 @@ export async function createAliExpressOrder(
     v: "2.0",
   };
 
+  if (!shipping || typeof shipping !== "object") {
+    throw new Error("createAliExpressOrder: shipping address missing/invalid");
+  }
+
   /* ---------- business parameters ---------- */
   const placeOrderDTO = {
     out_order_id: outOrderId ?? `od-${Date.now()}`,
-    logistics_address: shipping,
+    logistics_address: [shipping], // ← must be list
     product_items: items.map((i) => ({
       product_id: Number(i.id),
       product_count:
-        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity, // ← 0 in test
+        process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
       sku_attr: i.sku_attr ?? "",
       logistics_service_name: "",
       order_memo: " ",
@@ -606,11 +610,8 @@ function signAliExpressRequest(
   let queryString = "";
   for (const k of sortedKeys) queryString += k + params[k];
 
-  // TOP spec (system-level “/sync”): prefix secret, no suffix
-  const stringToSign =
-    apiPath === "/sync"
-      ? appSecret + apiPath + queryString
-      : apiPath + queryString; // OAuth path keeps “new” rule
+  // HMAC-SHA256 spec (REST /sync): secret as key, *no* prefix / suffix
+  const stringToSign = apiPath + queryString;
 
   return crypto
     .createHmac("sha256", appSecret)

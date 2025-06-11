@@ -63,10 +63,38 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           id: i.aliId,
           quantity:
             process.env.ALI_TEST_ENVIRONMENT === "true" ? 0 : i.quantity,
+          sku_attr: i.sku_attr ?? "",
         }));
-        const shipping = intent.metadata.shipping
+
+        // build shipping object
+        const shippingMeta = intent.metadata.shipping
           ? JSON.parse(intent.metadata.shipping)
           : null;
+
+        const stripeShip =
+          intent.shipping as Stripe.PaymentIntent.Shipping | null;
+
+        const shipping =
+          shippingMeta ||
+          (stripeShip?.address
+            ? {
+                address: stripeShip.address.line1,
+                address2: stripeShip.address.line2 ?? "",
+                city: stripeShip.address.city ?? "",
+                contact_person: stripeShip.name ?? "",
+                country: stripeShip.address.country ?? "",
+                mobile_no: stripeShip.phone ?? "",
+                phone_country: "+", // Stripe phone is full; keep “+” for now
+                phone_number: stripeShip.phone ?? "",
+                province: stripeShip.address.state ?? "",
+                zip: stripeShip.address.postal_code ?? "",
+              }
+            : null);
+
+        if (!shipping) {
+          console.error("❌ AliExpress order skipped – no shipping address");
+          return;
+        }
 
         /* ---------- place the order ---------- */
         let orderId: string | null = null;
