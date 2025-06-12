@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js";
 import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress";
+import mongoose from "mongoose";
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -60,7 +61,17 @@ const STATE_FULL: Record<string, string> = {
   WY: "Wyoming",
 };
 
-// Only apply basic JSON parsing to the webhook route
+// simple sub-model
+const subSchema = new mongoose.Schema({
+  email: String,
+  first: String,
+  last: String,
+});
+const Subscriber =
+  mongoose.models.NewsletterSubscriber ||
+  mongoose.model("NewsletterSubscriber", subSchema);
+
+/* ---------- Only apply basic JSON parsing to the webhook route */
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
     /* ---------- resolve Stripe.Event ---------- */
@@ -324,6 +335,21 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         brand,
         last4
       );
+
+      if (intent.metadata?.newsletter === "true" && email) {
+        const [first, ...rest] = (intent.shipping?.name ?? "").split(" ");
+        const last = rest.join(" ");
+        try {
+          await Subscriber.updateOne(
+            { email },
+            { email, first, last },
+            { upsert: true }
+          );
+          console.log("[newsletter] subscribed", email);
+        } catch (e) {
+          console.error("[newsletter] db error", e);
+        }
+      }
     }
 
     /* ---------- handle payment_intent.payment_failed ---------- */

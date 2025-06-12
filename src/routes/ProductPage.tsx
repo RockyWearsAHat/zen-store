@@ -8,6 +8,7 @@ import {
 } from "react-icons/fa6"; // + icons
 import { useState, useRef } from "react"; // ↞ new (for hover logic)
 import { IoCheckmark } from "react-icons/io5";
+import { catalogue } from "../lib/catalogue";
 
 /* small helper reused from ReviewsCarousel */
 function StarRating({ value }: { value: number }) {
@@ -72,7 +73,10 @@ function RatingBreakdown({
       <span className="text-sm text-gray-600">{rating.toFixed(1)}</span>
       <StarRating value={rating} />
       {/* arrow now on the right, no rotation */}
-      <span className="cursor-pointer text-gray-600">
+      <span
+        className="cursor-pointer text-gray-600"
+        aria-hidden="true" // purely visual
+      >
         <FaChevronDown size={14} />
       </span>
 
@@ -111,10 +115,11 @@ function RatingBreakdown({
 }
 /* ---------- end dropdown ---------- */
 
+const sku = "desktop-fountain";
 const product = {
-  id: "desktop-fountain",
-  title: "ZenFlow™ Desktop Fountain",
-  price: 109.99,
+  id: sku,
+  title: catalogue[sku].title,
+  price: catalogue[sku].price,
   rating: 4.7,
   images: [
     "/Main.avif",
@@ -136,9 +141,9 @@ export default function ProductPage() {
     addItem({
       id: product.id,
       title: product.title,
-      price: product.price,
+      price: product.price, // now 159.99 from catalogue
       quantity: 1,
-      image: product.images[0], // ← new
+      image: product.images[0],
     });
     setShowAdded(true);
     setTimeout(() => {
@@ -193,6 +198,7 @@ export default function ProductPage() {
         <button
           onClick={handleAddToCart}
           disabled={isAdding}
+          aria-label={showAdded ? "Item added to cart" : "Add item to cart"}
           className="w-full lg:w-auto bg-brand text-slate-900 font-bold px-8 py-4 rounded-lg shadow border-1 hover:cursor-pointer hover:shadow-lg transition"
         >
           {showAdded ? (

@@ -18,7 +18,12 @@ export default function AddToCartButton({ product }: { product: any }) {
   };
 
   return (
-    <button onClick={handleAddToCart} disabled={isAdding}>
+    <button
+      onClick={handleAddToCart}
+      disabled={isAdding}
+      aria-label={showAdded ? "Item added to cart" : "Add item to cart"}
+      aria-live="polite"
+    >
       {showAdded ? (
         <>
           <IoCheckmark /> Item Added To Cart

@@ -5,7 +5,7 @@ export const stripeAppearance: Appearance = {
   // 1️⃣ base dark theme
   theme: "night",
   // 2️⃣ optional floating labels (nice with dark inputs)
-  labels: "floating",
+  labels: "above", // no floating label → phone input shows fixed label
 
   // 3️⃣ design-tokens → Stripe “variables”
   variables: {

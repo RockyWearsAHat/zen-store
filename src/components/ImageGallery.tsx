@@ -100,11 +100,27 @@ export default function ImageGallery({ images, className = "" }: Props) {
     }
   };
 
+  /* ---- keyboard navigation ---- */
+  const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft") {
+      prev();
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      next();
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       <div
         className={`relative w-full aspect-square overflow-hidden rounded-xl shadow-lg
                    touch-pan-y ${className}`}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Product image gallery"
+        tabIndex={0}
+        onKeyDown={onKey}
         onClickCapture={handleClickCapture}
         onClick={handleClick}
         onTouchStart={onTouchStart}
@@ -119,6 +135,7 @@ export default function ImageGallery({ images, className = "" }: Props) {
             src.endsWith(".mp4") ? (
               <video
                 key={src}
+                aria-label={`Product video ${i + 1}`}
                 className="w-full h-full min-w-full object-cover"
                 onClick={(e) =>
                   e.currentTarget.paused

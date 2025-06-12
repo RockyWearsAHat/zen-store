@@ -12,7 +12,9 @@ interface Props {
   clientSecret: string;
   email: string;
   setEmail: (email: string) => void;
-  setShipping: (info: any) => void; // ← new
+  setShipping: (info: any) => void;
+  setNewsletter: (on: boolean) => void;
+  setPhone?: (phone: string) => void; // ← new (optional)
 }
 
 export default function CheckoutForm({
@@ -20,6 +22,8 @@ export default function CheckoutForm({
   email,
   setEmail,
   setShipping,
+  setNewsletter,
+  setPhone, // ← accept
 }: Props) {
   const stripe = useStripe();
   const elements = useElements();
@@ -27,6 +31,7 @@ export default function CheckoutForm({
   const navigate = useNavigate();
   const { clearCart } = useCart();
   const [total, setTotal] = useState<number | null>(null);
+  const [newsletter, setLocalNewsletter] = useState(false);
 
   useEffect(() => {
     const fetchPaymentIntent = async () => {
@@ -93,32 +98,52 @@ export default function CheckoutForm({
           id="email"
           type="email"
           required
-          /* unify with Stripe beige */
-          className="w-full rounded px-3 py-2 bg-[#d2b277] text-[#1c1917]
-                     placeholder-[#1c1917]/70 focus:outline-none focus:ring-0"
+          /* unify colours → brand palette */
+          className="w-full rounded px-3 py-2
+                     bg-brand text-stone-900
+                     placeholder-stone-900/70
+                     focus:outline-none focus:ring-0"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+
+        {/* newsletter checkbox lives right below e-mail */}
+        <label className="flex items-center gap-2 text-sm mt-2">
+          <input
+            id="newsletter"
+            type="checkbox"
+            checked={newsletter}
+            onChange={(e) => {
+              setLocalNewsletter(e.target.checked);
+              setNewsletter(e.target.checked);
+            }}
+          />
+          <span id="newsletter-label">Subscribe to our newsletter</span>
+        </label>
       </div>
 
       {/* ----------- ADDRESS ------------ */}
       <div className="space-y-2">
         <label htmlFor="address" className="font-semibold">
-          Address
+          Shipping address
         </label>
         <AddressElement
-          options={{ mode: "shipping" }}
+          id="address"
+          options={{
+            mode: "shipping",
+            fields: { phone: "always" }, // Stripe collects phone for us
+          }}
           onChange={(e) => {
             if (e.complete && e.value) {
-              const { name, address } = e.value;
-              // update parent with shipping
-              setShipping({ name, address });
+              const { name, address, phone } = e.value;
+              setShipping({ name, address, phone });
+              if (phone) setPhone?.(phone); // ← only pass when defined
             }
           }}
         />
       </div>
 
-      {/* PaymentElement already picks up colours from appearance */}
+      {/* ------------ PAYMENT ------------ */}
       <PaymentElement
         id="payment-element"
         options={{
@@ -135,8 +160,8 @@ export default function CheckoutForm({
 
       <button
         disabled={loading || !stripe}
-        /* same beige as inputs for perfect match */
-        className="hover:cursor-pointer bg-[#d2b277] text-[#1c1917] w-full py-3
+        /* brand-consistent background & text */
+        className="hover:cursor-pointer bg-brand text-stone-900 w-full py-3
                    rounded-lg font-semibold disabled:opacity-50 mb-3"
       >
         {loading ? "Processing…" : "Pay Now"}

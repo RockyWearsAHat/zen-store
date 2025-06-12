@@ -6,6 +6,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import CheckoutForm from "../components/CheckoutForm";
 import { stripeAppearance } from "../lib/stripeAppearance";
+import { catalogue, Sku } from "../lib/catalogue";
 
 // helpers for localStorage
 /* guard against the literal string "undefined" leaking into Stripe */
@@ -30,6 +31,8 @@ export default function CartPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [email, setEmail] = useState("");
   const [shipping, setShipping] = useState<any>(null);
+  const [phone, setPhone] = useState<string>("");
+  const [newsletter, setNewsletter] = useState<boolean>(false);
   const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
   // create OR update payment intent
@@ -41,6 +44,8 @@ export default function CartPage() {
       items: itemsPayload,
       email, // always send email
       shipping, // may be null
+      phone,
+      newsletter,
     };
     if (paymentIntentId) body.paymentIntentId = paymentIntentId; // only when valid
 
@@ -202,6 +207,7 @@ export default function CartPage() {
                             if (e.key === "Enter")
                               (e.target as HTMLInputElement).blur();
                           }}
+                          aria-label={`${i.title} quantity`}
                           className="appearance-none w-full max-w-[3.5rem] h-full border border-stone-600 rounded px-2 bg-stone-800 text-stone-100 text-center"
                         />
                       </div>
@@ -215,11 +221,15 @@ export default function CartPage() {
                           className="price-text text-right whitespace-nowrap"
                           style={{ width: "var(--price-text)" }} // ← was minWidth
                         >
-                          {formatCurrency(i.price * i.quantity)}
+                          {formatCurrency(
+                            (catalogue[i.id as Sku]?.price ?? i.price ?? 0) *
+                              i.quantity
+                          )}
                         </span>
                         <button
                           className="text-red-500 w-3 shrink-0"
                           onClick={() => removeItem(i.id)}
+                          aria-label={`Remove ${i.title} from cart`}
                         >
                           ✕
                         </button>
@@ -268,6 +278,8 @@ export default function CartPage() {
                 email={email}
                 setEmail={setEmail}
                 setShipping={setShipping}
+                setPhone={setPhone}
+                setNewsletter={setNewsletter}
               />
             </Elements>
           </div>

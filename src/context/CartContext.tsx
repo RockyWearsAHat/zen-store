@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useEffect,
 } from "react";
+import { catalogue, Sku } from "../lib/catalogue";
 
 export interface CartItem {
   id: string;
@@ -65,7 +66,11 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
   };
 
   const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    () =>
+      items.reduce((sum, i) => {
+        const unit = catalogue[i.id as Sku]?.price ?? i.price ?? 0;
+        return sum + unit * i.quantity;
+      }, 0),
     [items]
   );
 

@@ -4,7 +4,8 @@ import { FaRegStarHalfStroke, FaStar, FaRegStar } from "react-icons/fa6";
 /** very small helper */
 function StarRating({ value }: { value: number }) {
   return (
-    <div className="flex">
+    // role+label lets AT announce the numeric rating once
+    <div className="flex" role="img" aria-label={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((i) => {
         const full = value >= i;
         const half = !full && value >= i - 0.5;
@@ -317,11 +318,24 @@ export default function ReviewsCarousel() {
     };
   }, [dynamicBaseSets]);
 
+  const handleKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    const step = 300;
+    if (e.key === "ArrowLeft") {
+      scrollRef.current.scrollBy({ left: -step, behavior: "smooth" });
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      scrollRef.current.scrollBy({ left: step, behavior: "smooth" });
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="relative overflow-hidden">
       {/* Left fade */}
       {!(dynamicBaseSets === 1 && atStart) && (
         <div
+          aria-hidden="true" // decorative
           className="pointer-events-none absolute left-0 top-0 h-full w-[10px] z-10"
           style={{
             background:
@@ -332,6 +346,7 @@ export default function ReviewsCarousel() {
       {/* Right fade */}
       {!(dynamicBaseSets === 1 && atEnd) && (
         <div
+          aria-hidden="true"
           className="pointer-events-none absolute right-0 top-0 h-full w-[10px] z-10"
           style={{
             background:
@@ -341,6 +356,11 @@ export default function ReviewsCarousel() {
       )}
       <div
         ref={scrollRef}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Customer reviews carousel"
+        tabIndex={0}
+        onKeyDown={handleKey}
         className="no-scrollbar overflow-x-auto py-2"
         style={{
           // Let native momentum stay:

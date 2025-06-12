@@ -324,7 +324,8 @@ export default function LandingPage() {
             <Link
               className="text-center bg-brand text-stone-900 font-semibold
                          px-8 py-[1.105rem] transition hover:scale-[102%]
-                         focus:outline-none focus:ring-none focus:text-stone-900
+                         focus-visible:outline focus-visible:outline-2
+                         focus-visible:outline-offset-2 focus-visible:outline-white
                          w-full relative rounded-lg             /* < xl */
                          xl:static xl:rounded-lg xl:mt-auto"
               to="/product"
@@ -339,6 +340,19 @@ export default function LandingPage() {
             className="relative order-1 xl:order-2 w-full max-w-[650px] xl:w-auto xl:max-w-none min-w-0 aspect-square 
                        max-h-[650px] mx-auto xl:mx-0 overflow-hidden flex-shrink-0
                        rounded-xl shadow-lg cursor-pointer"
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Featured product images"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") {
+                goToPrevSlide();
+                e.preventDefault();
+              } else if (e.key === "ArrowRight") {
+                goToNextSlide();
+                e.preventDefault();
+              }
+            }}
             onClick={handleClick}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
@@ -365,6 +379,7 @@ export default function LandingPage() {
                   {src.endsWith(".mp4") ? (
                     <video
                       id={`video-slide-${index}`}
+                      aria-label={`Hero product video ${index + 1}`}
                       className="absolute inset-0 w-full h-full object-cover"
                       muted
                       onEnded={goToNextSlide}

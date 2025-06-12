@@ -1,24 +1,11 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { calculateOrderAmount } from "../src/lib/pricing";
+import { catalogue } from "../src/lib/catalogue";
+type Product = (typeof catalogue)[keyof typeof catalogue]; // ← helper
 import { Buffer } from "node:buffer";
 
-// ─── simple in‑memory catalogue ───────────────────────────────────────────────
-const catalogue: Record<
-  string,
-  { title: string; price: number; aliId: string; skuAttr: string }
-> = {
-  // internal SKU ─────────────── title ─────────── price ─ aliExpress id
-  "desktop-fountain": {
-    title: "ZenFlow™ Desktop Fountain",
-    price: 159.99,
-    aliId: "3256808853336519", // ← new unsure if this product will work as not listed on ds
-    skuAttr: "14:200003699;200007763:201336106",
-    // aliId: "3256807185796326", //Test product listed on DS.aliexpress
-  },
-  // add more products here…
-};
-// ──────────────────────────────────────────────────────────────────────────────
+// local catalogue definition removed – backend now uses the shared one
 
 /* simple, collision‑safe order‑number generator */
 function generateOrderNumber() {
@@ -176,27 +163,50 @@ router.post(
       ? body.items
       : parseItems(body) ?? null;
 
-    const { paymentIntentId, email, shipping } = body as any;
+    const { paymentIntentId, email, shipping, phone, newsletter } = body as any;
 
     if (!items || items.length === 0) {
       res.status(400).json({ error: "Missing or empty items array" });
       return;
     }
 
+    /* helper – resolve a catalogue entry by our SKU or by its aliId */
+    function findProduct(idOrAli: string): Product | undefined {
+      // cast to loosen the index type just for this lookup
+      const bySku = (catalogue as Record<string, Product>)[idOrAli] as
+        | Product
+        | undefined;
+
+      if (bySku) return bySku;
+      return Object.values(catalogue).find((p) => p.aliId === idOrAli);
+    }
+
     // use catalogue prices, ignore anything coming from client
     const subtotal = items.reduce((sum: number, i: any) => {
-      const product = catalogue[i.id];
+      const product = findProduct(i.id);
       return product ? sum + product.price * i.quantity : sum;
     }, 0);
 
     // add title & aliId → stored in PI.metadata.items
-    const itemsForMeta = items.map((i: any) => ({
-      id: i.id,
-      aliId: catalogue[i.id]?.aliId,
-      title: catalogue[i.id]?.title ?? i.id,
-      quantity: i.quantity,
-      skuAttr: catalogue[i.id]?.skuAttr ?? "", // ← keep original camel-case
-    }));
+    const itemsForMeta = items.map((i: any) => {
+      const product = findProduct(i.id);
+      return {
+        id: product
+          ? (Object.keys(catalogue).find(
+              (k) => (catalogue as Record<string, Product>)[k] === product
+            ) as string)
+          : i.id,
+        aliId: product?.aliId,
+        title: product?.title ?? i.id,
+        quantity: i.quantity,
+        skuAttr: product?.skuAttr ?? "",
+      };
+    });
+
+    /* merge phone into shipping */
+    const shippingMeta = shipping
+      ? { ...shipping, mobile_no: phone ?? shipping.mobile_no }
+      : null;
 
     // calculate tax and fees
     const { tax, fee, total } = calculateOrderAmount(subtotal);
@@ -214,7 +224,9 @@ router.post(
             tax,
             fee,
             items: JSON.stringify(itemsForMeta), // ← changed
-            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+            shipping: shippingMeta ? JSON.stringify(shippingMeta) : null, // ← add
+            phone: phone ?? "",
+            newsletter: newsletter ? "true" : "false",
           },
           receipt_email: email || undefined,
         });
@@ -232,7 +244,9 @@ router.post(
             tax,
             fee,
             items: JSON.stringify(itemsForMeta), // ← changed
-            shipping: shipping ? JSON.stringify(shipping) : null, // ← add
+            shipping: shippingMeta ? JSON.stringify(shippingMeta) : null, // ← add
+            phone: phone ?? "",
+            newsletter: newsletter ? "true" : "false",
           },
           receipt_email: email || undefined,
         });
