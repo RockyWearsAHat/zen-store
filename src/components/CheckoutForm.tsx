@@ -153,7 +153,7 @@ export default function CheckoutForm({
           Returns&nbsp;Policy
         </a>
         &nbsp;and&nbsp;
-        <a href="/terms" className="underline">
+        <a href="/terms-and-conditions" className="underline">
           Terms&nbsp;&amp;&nbsp;Conditions
         </a>
         .
