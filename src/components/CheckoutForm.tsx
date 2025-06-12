@@ -141,6 +141,23 @@ export default function CheckoutForm({
       >
         {loading ? "Processing…" : "Pay Now"}
       </button>
+
+      {/* ─── terms & policies notice ─── */}
+      <p className="text-xs text-stone-400 text-center">
+        By placing your order, you agree to Zen&nbsp;Essentials’&nbsp;
+        <a href="/privacy" className="underline">
+          Privacy&nbsp;Notice
+        </a>
+        ,&nbsp;
+        <a href="/returns" className="underline">
+          Returns&nbsp;Policy
+        </a>
+        &nbsp;and&nbsp;
+        <a href="/terms" className="underline">
+          Terms&nbsp;&amp;&nbsp;Conditions
+        </a>
+        .
+      </p>
     </form>
   );
 }

@@ -5,6 +5,9 @@ import LandingPage from "./routes/LandingPage";
 import ProductPage from "./routes/ProductPage";
 import CartPage from "./routes/CartPage";
 import SuccessPage from "./routes/SuccessPage";
+import PrivacyPage from "./routes/PrivacyPage";
+import ReturnsPage from "./routes/ReturnsPage";
+import ConditionsPage from "./routes/ConditionsPage";
 import { CartProvider } from "./context/CartContext";
 import { Outlet } from "react-router-dom";
 
@@ -31,6 +34,9 @@ const router = createBrowserRouter([
       { path: "product", element: <ProductPage /> },
       { path: "cart", element: <CartPage /> },
       { path: "success", element: <SuccessPage /> },
+      { path: "privacy", element: <PrivacyPage /> },
+      { path: "returns", element: <ReturnsPage /> },
+      { path: "conditions", element: <ConditionsPage /> },
     ],
   },
 ]);

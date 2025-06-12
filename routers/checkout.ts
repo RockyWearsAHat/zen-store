@@ -11,7 +11,7 @@ const catalogue: Record<
   // internal SKU ─────────────── title ─────────── price ─ aliExpress id
   "desktop-fountain": {
     title: "ZenFlow™ Desktop Fountain",
-    price: 109.99,
+    price: 159.99,
     aliId: "3256808853336519", // ← new unsure if this product will work as not listed on ds
     skuAttr: "14:200003699;200007763:201336106",
     // aliId: "3256807185796326", //Test product listed on DS.aliexpress
