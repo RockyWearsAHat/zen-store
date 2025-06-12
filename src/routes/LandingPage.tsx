@@ -324,7 +324,6 @@ export default function LandingPage() {
             <Link
               className="text-center bg-brand text-stone-900 font-semibold
                          px-8 py-[1.105rem] transition hover:scale-[102%]
-                         focus-visible:outline focus-visible:outline-2
                          focus-visible:outline-offset-2 focus-visible:outline-white
                          w-full relative rounded-lg             /* < xl */
                          xl:static xl:rounded-lg xl:mt-auto"
