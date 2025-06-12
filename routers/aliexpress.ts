@@ -666,6 +666,13 @@ async function getAliOrderTracking(
 
   const track =
     data?.tracking_detail_line_list?.tracking_detail?.[0]?.mail_no ?? null;
+
+  console.log(
+    "[AliExpress] Tracking lookup for",
+    orderId,
+    "→",
+    track || "no-data"
+  );
   return track;
 }
 

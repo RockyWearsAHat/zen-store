@@ -216,7 +216,9 @@ export async function sendSuccessEmail(
   /* ── log context ───────────────────── */
   const mask = (s?: string) => (s ? s.slice(0, 6) + "…" : "(unset)");
   console.log("[e-mail] map context", {
-    trackingNumber,
+    explicitTracking,
+    metaTracking: intent.metadata?.ali_tracking ?? "—",
+    chosenTracking: trackingNumber || "(empty)",
     mapsKey: mask(mapsKey),
   });
 

@@ -256,8 +256,18 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             shipping,
             intent.metadata.order_number
           );
+          console.log("[stripe] AliExpress create returned:", ali);
+
           orderId = ali.orderId;
           trackingNumber = ali.trackingNumber;
+
+          if (!trackingNumber) {
+            console.warn(
+              "[stripe] No tracking number yet for order",
+              orderId,
+              "- e-mail will show fallback map"
+            );
+          }
 
           /* make tracking number immediately visible to e-mail helper */
           intent.metadata = {
@@ -268,7 +278,6 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
               ali.orderCost !== null && ali.orderCost !== undefined
                 ? String(ali.orderCost)
                 : "",
-            /* unify – use the AliExpress order-ID everywhere */
             order_number: orderId,
           };
           /* persist metadata asynchronously (does not affect e-mail) */
