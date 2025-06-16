@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const isTouch =
   typeof window !== "undefined" &&
@@ -9,8 +9,10 @@ interface Props {
   className?: string;
 }
 
-export default function ImageGallery({ images, className = "" }: Props) {
+export default function ImageGallery({ images }: Props) {
   const [current, setCurrent] = useState(0);
+  // Renamed for clarity: this is the scrollable viewport
+  const thumbnailViewportRef = useRef<HTMLDivElement>(null);
 
   /* ----- navigation helpers & swipe detection ----- */
   const total = images.length;
@@ -111,73 +113,124 @@ export default function ImageGallery({ images, className = "" }: Props) {
     }
   };
 
+  // Modified scroll function that avoids interfering with tab order
+  const scrollThumbnailIntoView = (index: number) => {
+    if (!thumbnailViewportRef.current) return;
+
+    const container =
+      thumbnailViewportRef.current.querySelector(".thumbnail-strip");
+    if (!container || !container.children[index]) return;
+
+    const thumbnail = container.children[index] as HTMLElement;
+
+    // Use built-in scrollIntoView with a specific alignment
+    thumbnail.scrollIntoView({
+      behavior: "smooth",
+      inline: "center", // Center the thumbnail in the view for maximum outline space
+    });
+  };
+
+  // Modified effect to prevent focus stealing on initial page load
+  useEffect(() => {
+    // Only run the effect if we're not in the initial page load
+    if (images && images.length > 0) {
+      // Add a slight delay to avoid interfering with initial tab order
+      const timer = setTimeout(() => {
+        // Check if user has already started interacting with the page
+        const hasUserInteracted =
+          document.activeElement && document.activeElement !== document.body;
+
+        // Only scroll if this isn't the initial mount or user has already interacted
+        if (hasUserInteracted) {
+          scrollThumbnailIntoView(current);
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [current, images]); // Rerun when current or images change
+
   return (
-    <div className={`flex flex-col gap-4 ${className}`}>
+    <div className="px-4 flex flex-col gap-4">
+      {/* Main image container */}
       <div
-        className={`relative w-full aspect-square overflow-hidden rounded-xl shadow-lg
-                   touch-pan-y ${className}`}
+        className="w-full aspect-square rounded-xl overflow-hidden"
         role="region"
         aria-roledescription="carousel"
         aria-label="Product image gallery"
         tabIndex={0}
         onKeyDown={onKey}
-        onClickCapture={handleClickCapture}
-        onClick={handleClick}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
       >
-        {/* --- slider track ------------------------------------------------ */}
         <div
-          className="flex transition-transform duration-300 ease-in-out h-full"
-          style={{ transform: `translateX(-${current * 100}%)` }}
+          className="relative w-full h-full overflow-hidden rounded-xl shadow-lg touch-pan-y"
+          onClickCapture={handleClickCapture}
+          onClick={handleClick}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
         >
-          {images.map((src, i) =>
-            src.endsWith(".mp4") ? (
-              <video
-                key={src}
-                aria-label={`Product video ${i + 1}`}
-                className="w-full h-full min-w-full object-cover"
-                onClick={(e) =>
-                  e.currentTarget.paused
-                    ? e.currentTarget.play()
-                    : e.currentTarget.pause()
-                }
-              >
-                <source src={src} type="video/mp4" />
-              </video>
-            ) : (
-              <img
-                key={src}
-                src={src}
-                alt={`Product view ${i + 1}`}
-                className="w-full h-full min-w-full object-cover"
-              />
-            )
-          )}
+          <div
+            className="flex transition-transform duration-300 ease-in-out h-full"
+            style={{ transform: `translateX(-${current * 100}%)` }}
+          >
+            {images.map((src, i) =>
+              src.endsWith(".mp4") ? (
+                <video
+                  key={src}
+                  aria-label={`Product video ${i + 1}`}
+                  className="w-full h-full object-cover"
+                  onClick={(e) =>
+                    e.currentTarget.paused
+                      ? e.currentTarget.play()
+                      : e.currentTarget.pause()
+                  }
+                >
+                  <source src={src} type="video/mp4" />
+                </video>
+              ) : (
+                <img
+                  key={src}
+                  src={src}
+                  alt={`Product view ${i + 1}`}
+                  className="w-full h-full object-cover outline-offset-[-2px_!important]"
+                />
+              )
+            )}
+          </div>
         </div>
-        {/* ----------------------------------------------------------------- */}
       </div>
-      {/* thumbnail strip */}
+
+      {/* Thumbnail container */}
       <div
-        /* allow horizontal scrolling on mobile, revert to normal on ≥sm */
-        className="no-scrollbar
-    mt-4 flex gap-2
-    overflow-x-auto sm:overflow-visible
-    -mx-2 px-2              /* little side-padding so first/last thumb aren’t cut off */
-    scroll-smooth           /* nicer feel */
-  "
+        ref={thumbnailViewportRef}
+        className="no-scrollbar w-full overflow-x-auto mt-4"
       >
-        {images.map((src, i) => (
-          <img
-            key={src}
-            onClick={() => setCurrent(i)}
-            className={`w-20 h-20 object-cover cursor-pointer rounded flex-shrink-0 ${
-              i === current ? "" : "opacity-70 hover:opacity-100"
-            }`}
-            src={src}
-            alt=""
-          />
-        ))}
+        <div className="thumbnail-strip flex gap-2 py-2 pr-12">
+          {images.map((src, i) => (
+            <img
+              key={src}
+              onClick={() => {
+                setCurrent(i);
+              }}
+              tabIndex={0}
+              onFocus={() => {
+                setCurrent(i);
+                scrollThumbnailIntoView(i);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setCurrent(i);
+                  scrollThumbnailIntoView(i);
+                  e.preventDefault();
+                }
+              }}
+              className={`w-20 h-20 object-cover cursor-pointer rounded flex-shrink-0 focus:outline-offset-[-2px_!important] ${
+                i === current ? "" : "opacity-70 hover:opacity-100"
+              }`}
+              src={src}
+              alt={`Thumbnail of product view ${i + 1}`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

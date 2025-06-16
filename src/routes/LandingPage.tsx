@@ -307,7 +307,7 @@ export default function LandingPage() {
                        max-w-[650px] mx-auto xl:max-w-none relative"
           >
             <h1 className="text-5xl md:text-6xl font-extrabold leading-tight mb-6 text-stone-100">
-              Find Your Flow with the{" "}
+              Find Your Zen with the{" "}
               <span className="underline text-brand">ZenFlow™ Fountain</span>
             </h1>
             <p className="text-lg md:text-xl mb-8 max-w-xl mx-auto text-stone-300">

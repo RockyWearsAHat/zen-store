@@ -14,9 +14,9 @@ function StarRating({ value }: { value: number }) {
             key={i}
             className={
               full
-                ? "text-yellow-400"
+                ? "text-brand" /* brand colour */
                 : half
-                ? "text-yellow-400"
+                ? "text-brand" /* brand colour for half */
                 : "text-gray-300"
             }
           >
@@ -93,6 +93,7 @@ const middleSet = Math.floor(baseSets / 2);
 export default function ReviewsCarousel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const carouselWrapperRef = useRef<HTMLDivElement>(null); // Ref for the outer wrapper
   const [dynamicBaseSets, setDynamicBaseSets] = useState(3);
 
   const singleSetWidth = useRef(0);
@@ -250,8 +251,11 @@ export default function ReviewsCarousel() {
   // --- Autoscroll on desktop (requestAnimationFrame, whole number increments, 30fps cap) ---
   useEffect(() => {
     if (dynamicBaseSets <= 1) return;
-    const container = scrollRef.current;
-    if (!container) return;
+
+    const outerWrapper = carouselWrapperRef.current; // Use the new ref for the outer element
+    const scrollContainer = scrollRef.current; // Keep using scrollRef for actual scrolling
+
+    if (!outerWrapper || !scrollContainer) return;
 
     let rafId: number | null = null;
     const fps = 60;
@@ -265,8 +269,9 @@ export default function ReviewsCarousel() {
       const elapsed = now - lastFrame;
       if (elapsed >= frameDuration) {
         lastFrame = now;
-        if (container && singleSetWidth.current) {
-          container.scrollLeft += Math.round(speed);
+        // Scroll the inner container
+        if (scrollContainer && singleSetWidth.current) {
+          scrollContainer.scrollLeft += Math.round(speed);
         }
       }
       rafId = requestAnimationFrame(step);
@@ -300,21 +305,23 @@ export default function ReviewsCarousel() {
 
     start();
 
-    container.addEventListener("mouseenter", pause);
-    container.addEventListener("mouseleave", resume);
-    container.addEventListener("touchstart", pause, { passive: true });
-    container.addEventListener("touchend", resume, { passive: true });
-    container.addEventListener("focusin", pause);
-    container.addEventListener("focusout", resume);
+    // Attach listeners to the outer wrapper
+    outerWrapper.addEventListener("mouseenter", pause);
+    outerWrapper.addEventListener("mouseleave", resume);
+    outerWrapper.addEventListener("touchstart", pause, { passive: true });
+    outerWrapper.addEventListener("touchend", resume, { passive: true });
+    outerWrapper.addEventListener("focusin", pause);
+    outerWrapper.addEventListener("focusout", resume);
 
     return () => {
       stop();
-      container.removeEventListener("mouseenter", pause);
-      container.removeEventListener("mouseleave", resume);
-      container.removeEventListener("touchstart", pause);
-      container.removeEventListener("touchend", resume);
-      container.removeEventListener("focusin", pause);
-      container.removeEventListener("focusout", resume);
+      // Remove listeners from the outer wrapper
+      outerWrapper.removeEventListener("mouseenter", pause);
+      outerWrapper.removeEventListener("mouseleave", resume);
+      outerWrapper.removeEventListener("touchstart", pause);
+      outerWrapper.removeEventListener("touchend", resume);
+      outerWrapper.removeEventListener("focusin", pause);
+      outerWrapper.removeEventListener("focusout", resume);
     };
   }, [dynamicBaseSets]);
 
@@ -331,7 +338,12 @@ export default function ReviewsCarousel() {
   };
 
   return (
-    <div className="relative overflow-hidden">
+    <div
+      ref={carouselWrapperRef} // Assign the new ref here
+      className="relative overflow-hidden reviews-carousel-focus"
+      tabIndex={0}
+      onKeyDown={handleKey}
+    >
       {/* Left fade */}
       {!(dynamicBaseSets === 1 && atStart) && (
         <div
@@ -359,8 +371,6 @@ export default function ReviewsCarousel() {
         role="region"
         aria-roledescription="carousel"
         aria-label="Customer reviews carousel"
-        tabIndex={0}
-        onKeyDown={handleKey}
         className="no-scrollbar overflow-x-auto py-2"
         style={{
           // Let native momentum stay:

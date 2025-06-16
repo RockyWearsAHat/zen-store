@@ -11,13 +11,6 @@ export default function Header() {
       className="bg-stone-900 text-stone-100 p-4 flex justify-between
                  fixed top-0 left-0 w-full z-50 border-b border-stone-800"
     >
-      {/* ---- skip link ---- */}
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-brand text-slate-900 px-3 py-2 rounded"
-      >
-        Skip to main content
-      </a>
       <Link to="/" className="font-bold text-xl">
         Zen Essentials
       </Link>
