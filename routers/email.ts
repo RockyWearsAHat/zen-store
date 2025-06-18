@@ -443,9 +443,6 @@ We appreciate your business!
     subject: "Your Zen Essentials order is confirmed",
     html,
     text,
-    headers: {
-      "List-Unsubscribe": "<mailto:unsubscribe@zen-essentials.store>",
-    },
     attachments, // ← embed map if we have it
   });
 
@@ -469,7 +466,7 @@ export async function sendFailureEmail(
     <p>
       Your items are <strong>not</strong> on the way.  
       Please try again or contact support at
-      <a href="mailto:support@zen‑essentials.store">support@zen‑essentials.store</a>.
+      <a href="mailto:alexwaldmann2004@gmail.com">alexwaldmann2004@gmail.com</a>.
     </p>
   `);
 
@@ -486,25 +483,46 @@ export async function sendTrackingEmail(
   intent: Stripe.PaymentIntent,
   to: string,
   trackingNumber: string,
-  mapUrl = `https://www.17track.net/en/track?nums=${trackingNumber}`
+  mapUrl = `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}&requester=WT/trackdetails`
 ): Promise<void> {
   const orderNo =
     intent.metadata?.ali_order_id ?? intent.metadata?.order_number ?? intent.id;
 
   const html = container(`
     <h2 style="color:#0f766e">Your order is on the way!</h2>
-    <p>Order&nbsp;#<strong>${orderNo}</strong> has shipped.</p>
-    <p>
-      Tracking&nbsp;Number:&nbsp;<strong>${trackingNumber}</strong><br/>
-      <a href="${mapUrl}">Track&nbsp;your&nbsp;package</a>
+    <p>Great news! Your Zen Essentials order has shipped and is on its way to you.</p>
+    
+    <h3 style="margin-top:24px;margin-bottom:8px">Order Details</h3>
+    <table style="width:100%;border-collapse:collapse">
+      <tbody>
+        <tr><td style="text-align:left">Order Number</td><td style="text-align:right"><strong>${orderNo}</strong></td></tr>
+        <tr><td style="text-align:left">Tracking Number</td><td style="text-align:right"><strong>${trackingNumber}</strong></td></tr>
+      </tbody>
+    </table>
+    
+    <p style="margin-top:24px">
+      <a href="${mapUrl}" style="display:inline-block;background:#0f766e;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">
+        Track Your Package
+      </a>
     </p>
+    
+    <p style="margin-top:24px">You can track your package anytime using the tracking number above. Delivery typically takes 7-15 business days depending on your location.</p>
+    <p style="margin-top:24px">We appreciate your business!</p>
   `);
 
   const text = `
-Your order ${orderNo} is on the way!
+Your Zen Essentials order is on the way!
 
-Tracking number: ${trackingNumber}
-Track here: ${mapUrl}
+Great news! Your order has shipped and is on its way to you.
+
+Order Details:
+Order Number: ${orderNo}
+Tracking Number: ${trackingNumber}
+
+Track your package: ${mapUrl}
+
+You can track your package anytime using the tracking number above.
+Delivery can be expected typically within 7 business days.
 `.trim();
 
   await transporter.sendMail({
@@ -513,9 +531,6 @@ Track here: ${mapUrl}
     subject: "Your Zen Essentials tracking information",
     html,
     text,
-    headers: {
-      "List-Unsubscribe": "<mailto:unsubscribe@zen-essentials.store>",
-    },
   });
 
   console.log(`[e-mail] Tracking mail sent to ${to} (${trackingNumber})`);
