@@ -14,8 +14,19 @@ app.use(
   stripeWebhookRouter
 );
 
-// 2️⃣ Mount AliExpress webhook with regular JSON parsing
-app.use("/api/ali-order-webhook", express.json(), aliOrderWebhookRouter);
+// 2️⃣ Mount AliExpress webhook with regular JSON parsing and CORS
+app.use(
+  "/api/ali-order-webhook",
+  (_req, res, next) => {
+    // Add CORS headers for AliExpress
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    next();
+  },
+  express.json(),
+  aliOrderWebhookRouter
+);
 
 /* ── 3️⃣  normal body parsers for the rest ── */
 app.use(express.json());

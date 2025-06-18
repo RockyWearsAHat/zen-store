@@ -38,15 +38,41 @@ router.post("/", async (req: Request, res: Response) => {
       "[aliOrderWebhook] Received payload:",
       JSON.stringify(req.body, null, 2)
     );
+    console.log("[aliOrderWebhook] Headers:", req.headers);
+
+    // Handle webhook verification/challenge requests
+    if (req.body.challenge) {
+      console.log(
+        "[aliOrderWebhook] Verification challenge received:",
+        req.body.challenge
+      );
+      res.status(200).json({ challenge: req.body.challenge });
+      return;
+    }
+
+    // Handle verification by returning success for any test payload
+    if (req.body.test || req.body.verification) {
+      console.log("[aliOrderWebhook] Test/verification request received");
+      res
+        .status(200)
+        .json({ success: true, message: "Webhook endpoint verified" });
+      return;
+    }
 
     // AliExpress webhook payload structure based on docs
     const { data, message_type, timestamp } = req.body;
 
-    if (!data || message_type !== 53) {
-      console.warn("[aliOrderWebhook] Invalid message type or missing data:", {
-        message_type,
-        hasData: !!data,
-      });
+    // For initial webhook setup, AliExpress might send empty or minimal payload
+    if (!data) {
+      console.log("[aliOrderWebhook] Empty data - likely verification request");
+      res
+        .status(200)
+        .json({ success: true, message: "Webhook endpoint active" });
+      return;
+    }
+
+    if (message_type !== 53) {
+      console.warn("[aliOrderWebhook] Invalid message type:", message_type);
       res.status(200).json({ success: true }); // Still return 200 for AliExpress
       return;
     }
@@ -157,12 +183,28 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 /* ---------- webhook verification endpoint ---------- */
-router.get("/", async (_req: Request, res: Response) => {
-  res.json({
-    status: "AliExpress webhook endpoint is active",
+router.get("/", async (req: Request, res: Response) => {
+  console.log("[aliOrderWebhook] GET request received for verification");
+  console.log("[aliOrderWebhook] Query params:", req.query);
+  console.log("[aliOrderWebhook] Headers:", req.headers);
+
+  // Handle any challenge parameter for verification
+  if (req.query.challenge) {
+    res.status(200).send(req.query.challenge);
+    return;
+  }
+
+  res.status(200).json({
+    status: "success",
+    message: "AliExpress webhook endpoint is active and ready",
     timestamp: new Date().toISOString(),
     endpoint: "/api/ali-order-webhook",
   });
+});
+
+/* ---------- OPTIONS handler for CORS preflight ---------- */
+router.options("/", async (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
 });
 
 export { router as aliOrderWebhookRouter };
