@@ -31,7 +31,6 @@ export default function CartPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [email, setEmail] = useState("");
   const [shipping, setShipping] = useState<any>(null);
-  const [phone, setPhone] = useState<string>("");
   const [newsletter, setNewsletter] = useState<boolean>(false);
   const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
@@ -42,9 +41,8 @@ export default function CartPage() {
       : [];
     const body: Record<string, any> = {
       items: itemsPayload,
-      email, // always send email
-      shipping, // may be null
-      phone,
+      email,
+      shipping,
       newsletter,
     };
     if (paymentIntentId) body.paymentIntentId = paymentIntentId; // only when valid
@@ -115,6 +113,53 @@ export default function CartPage() {
     return () => window.removeEventListener("resize", updatePriceWidth);
   }, [items, subtotal]);
   /* -------------------------------------------------------------------- */
+
+  /* ---------- auto-close modal when tab / window loses focus ---------- */
+  useEffect(() => {
+    if (!showPaymentForm) return;
+
+    let blurTimeout: NodeJS.Timeout;
+
+    const handleBlur = () => {
+      // Add a small delay to prevent closing when just tabbing through elements
+      blurTimeout = setTimeout(() => {
+        // Only close if no element within the modal has focus
+        if (
+          !document
+            .querySelector('[role="dialog"]')
+            ?.contains(document.activeElement)
+        ) {
+          setShowPaymentForm(false);
+        }
+      }, 100);
+    };
+
+    const handleFocus = () => {
+      // Clear the timeout if focus returns quickly (like when tabbing through)
+      if (blurTimeout) {
+        clearTimeout(blurTimeout);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setShowPaymentForm(false);
+      }
+    };
+
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      if (blurTimeout) {
+        clearTimeout(blurTimeout);
+      }
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [showPaymentForm]);
 
   if (items.length === 0)
     return (
@@ -261,11 +306,23 @@ export default function CartPage() {
         </aside>
       </div>
       {showPaymentForm && clientSecret && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.5)] p-4">
-          <div className="relative bg-stone-900 text-stone-100 w-full max-w-lg rounded-xl overflow-y-auto max-h-full p-4 border border-stone-700">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.5)] p-4"
+          data-backdrop="true"
+        >
+          <div
+            className="relative bg-stone-900 text-stone-100 w-full max-w-lg rounded-xl overflow-y-auto max-h-full p-4 border border-stone-700"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-title"
+            style={{ outline: "none" }}
+          >
             <button
               onClick={() => setShowPaymentForm(false)}
-              className="absolute top-3 right-3 text-2xl"
+              className="absolute top-3 right-3 text-2xl hover:text-stone-300 focus:outline-none focus:ring-2 focus:ring-brand rounded"
+              aria-label="Close checkout form"
+              tabIndex={0}
             >
               &times;
             </button>
@@ -278,8 +335,8 @@ export default function CartPage() {
                 email={email}
                 setEmail={setEmail}
                 setShipping={setShipping}
-                setPhone={setPhone}
                 setNewsletter={setNewsletter}
+                onRequestClose={() => setShowPaymentForm(false)}
               />
             </Elements>
           </div>

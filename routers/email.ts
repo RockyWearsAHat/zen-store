@@ -472,3 +472,43 @@ export async function sendFailureEmail(
     html,
   });
 }
+
+/* ─── new helper: tracking notification ────────────────────── */
+export async function sendTrackingEmail(
+  intent: Stripe.PaymentIntent,
+  to: string,
+  trackingNumber: string,
+  mapUrl = `https://www.17track.net/en/track?nums=${trackingNumber}`
+): Promise<void> {
+  const orderNo =
+    intent.metadata?.ali_order_id ?? intent.metadata?.order_number ?? intent.id;
+
+  const html = container(`
+    <h2 style="color:#0f766e">Your order is on the way!</h2>
+    <p>Order&nbsp;#<strong>${orderNo}</strong> has shipped.</p>
+    <p>
+      Tracking&nbsp;Number:&nbsp;<strong>${trackingNumber}</strong><br/>
+      <a href="${mapUrl}">Track&nbsp;your&nbsp;package</a>
+    </p>
+  `);
+
+  const text = `
+Your order ${orderNo} is on the way!
+
+Tracking number: ${trackingNumber}
+Track here: ${mapUrl}
+`.trim();
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject: "Your Zen Essentials tracking information",
+    html,
+    text,
+    headers: {
+      "List-Unsubscribe": "<mailto:unsubscribe@zen-essentials.store>",
+    },
+  });
+
+  console.log(`[e-mail] Tracking mail sent to ${to} (${trackingNumber})`);
+}

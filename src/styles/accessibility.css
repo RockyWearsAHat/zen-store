@@ -1,9 +1,0 @@
-:focus-visible {
-  outline: 1.5px solid #ffffff !important;
-  outline-offset: 1px !important;
-}
-
-.reviews-carousel-focus:focus-visible {
-  outline: 1.5px solid #ffffff !important;
-  outline-offset: 1px !important; /* Adjusted for thinner outline, can be 2px if preferred */
-}

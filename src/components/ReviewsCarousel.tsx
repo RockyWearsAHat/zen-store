@@ -38,17 +38,27 @@ const reviews = [
   {
     name: "Alice W.",
     rating: 4.5,
-    text: "The soft water sound keeps me calm on stressful days.",
+    text: "The water sound keeps me calm on stressful days.",
+  },
+  {
+    name: "James K.",
+    rating: 4.5,
+    text: "It's a lot bigger than I expected.",
+  },
+  {
+    name: "Olivia P.",
+    rating: 5,
+    text: "Great gift idea – I've bought two already!",
   },
   {
     name: "Marcus L.",
     rating: 5,
-    text: "Looks premium, feels premium – worth every cent!",
+    text: "Looks and feels extremely premium!",
   },
   {
     name: "Priya S.",
     rating: 4,
-    text: "Really helped me focus while studying for exams.",
+    text: "Really helped me focus.",
   },
   {
     name: "Daniel T.",
@@ -58,7 +68,12 @@ const reviews = [
   {
     name: "Jin‑Ho K.",
     rating: 5,
-    text: "Arrived quickly and was super easy to set up.",
+    text: "Arrived quickly and was pretty easy to assemble.",
+  },
+  {
+    name: "George B.",
+    rating: 5,
+    text: "Wish I’d bought one sooner.",
   },
   {
     name: "Elena R.",
@@ -74,16 +89,6 @@ const reviews = [
     name: "Carlos M.",
     rating: 5,
     text: "Friends keep asking where I got it!",
-  },
-  {
-    name: "Olivia P.",
-    rating: 4.5,
-    text: "Great gift idea – bought two already.",
-  },
-  {
-    name: "George B.",
-    rating: 4,
-    text: "Wish I’d bought one sooner.",
   },
 ];
 

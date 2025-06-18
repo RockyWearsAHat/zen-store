@@ -400,75 +400,6 @@ aliexpressRouter.get(
   }
 );
 
-/* ──────────────────────────────────────────────────────────────── *
- *  AliExpress Dropshipping – PLACE ORDER & TRACKING HELPERS       *
- * ──────────────────────────────────────────────────────────────── */
-
-const LIVE_BASE_URL = "https://api-sg.aliexpress.com";
-const TEST_BASE_URL = "https://api-sg.aliexpress.com"; // ← put sandbox URL if different
-const ALI_BASE_URL =
-  process.env.ALI_TEST_ENVIRONMENT === "true" ? TEST_BASE_URL : LIVE_BASE_URL;
-
-/* ---------- helper : TOP timestamp (UTC+8) -------------------- */
-function topTimestamp(): string {
-  const d = new Date(Date.now() + 8 * 60 * 60 * 1000); // shift to UTC+8
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return (
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
-      d.getUTCDate()
-    )} ` +
-    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
-      d.getUTCSeconds()
-    )}`
-  );
-}
-
-/* ---------- fetchRecommendedService : aliexpress.logistics.ds.recommend.list --- */
-const svcCache = new Map<string, string>();
-
-async function fetchRecommendedService(
-  productId: number,
-  skuAttr: string,
-  country: string,
-  province: string
-): Promise<string> {
-  const key = `${productId}|${skuAttr}|${country}|${province}`;
-  if (svcCache.has(key)) return svcCache.get(key)!;
-
-  const accessToken = await getAliAccessToken();
-  const apiPath = "/sync";
-  const method = "aliexpress.logistics.ds.recommend.list";
-  const params: Record<string, string> = {
-    app_key: APP_KEY,
-    method,
-    access_token: accessToken,
-    timestamp: topTimestamp(),
-    sign_method: "sha256",
-    v: "2.0",
-    product_id: String(productId),
-    sku_attr: skuAttr,
-    country_code: country,
-    province,
-  };
-  const sign = signAliExpressRequest(apiPath, params, APP_SECRET);
-  const body = new URLSearchParams({ ...params, sign }).toString();
-
-  const raw = await fetch(`${ALI_BASE_URL}${apiPath}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  }).then((r) => r.text());
-
-  const json: any = JSON.parse(raw);
-  const svc =
-    json?.aliexpress_logistics_ds_recommend_list_response?.result
-      ?.recommend_solutions?.recommend_solution?.[0]?.logistics_service_name ??
-    "";
-  if (svc) svcCache.set(key, svc);
-  console.log("[AliExpress] recommend service for", key, "→", svc || "—");
-  return svc || "CAINIAO_STANDARD";
-}
-
 /* ---------- createAliExpressOrder ----------------------------------------- */
 export interface AliItem {
   id: string | number;
@@ -627,58 +558,76 @@ export async function createAliExpressOrder(
   };
 }
 
-/* ---------- getAliOrderTracking ------------------------------------------ */
-async function getAliOrderTracking(
-  orderId: string,
-  lang = "en_US"
-): Promise<string | null> {
-  const accessToken = await getAliAccessToken();
+/* ──────────────────────────────────────────────────────────────── *
+ *  AliExpress Dropshipping – PLACE ORDER & TRACKING HELPERS       *
+ * ──────────────────────────────────────────────────────────────── */
 
-  const method = "aliexpress.ds.order.tracking.get";
+const LIVE_BASE_URL = "https://api-sg.aliexpress.com";
+const TEST_BASE_URL = "https://api-sg.aliexpress.com"; // ← put sandbox URL if different
+const ALI_BASE_URL =
+  process.env.ALI_TEST_ENVIRONMENT === "true" ? TEST_BASE_URL : LIVE_BASE_URL;
+
+/* ---------- helper : TOP timestamp (UTC+8) -------------------- */
+function topTimestamp(): string {
+  const d = new Date(Date.now() + 8 * 60 * 60 * 1000); // shift to UTC+8
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+      d.getUTCDate()
+    )} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
+      d.getUTCSeconds()
+    )}`
+  );
+}
+
+/* ---------- fetchRecommendedService : aliexpress.logistics.ds.recommend.list --- */
+const svcCache = new Map<string, string>();
+
+async function fetchRecommendedService(
+  productId: number,
+  skuAttr: string,
+  country: string,
+  province: string
+): Promise<string> {
+  const key = `${productId}|${skuAttr}|${country}|${province}`;
+  if (svcCache.has(key)) return svcCache.get(key)!;
+
+  const accessToken = await getAliAccessToken();
   const apiPath = "/sync";
-  const sysParams: Record<string, string> = {
+  const method = "aliexpress.logistics.ds.recommend.list";
+  const params: Record<string, string> = {
     app_key: APP_KEY,
     method,
-    sign_method: "sha256",
-    timestamp: topTimestamp(), // ← formatted timestamp
     access_token: accessToken,
-    ae_order_id: orderId,
-    language: lang,
+    timestamp: topTimestamp(),
+    sign_method: "sha256",
+    v: "2.0",
+    product_id: String(productId),
+    sku_attr: skuAttr,
+    country_code: country,
+    province,
   };
+  const sign = signAliExpressRequest(apiPath, params, APP_SECRET);
+  const body = new URLSearchParams({ ...params, sign }).toString();
 
-  const sign = signAliExpressRequest(apiPath, sysParams, APP_SECRET);
-  const body = new URLSearchParams({ ...sysParams, sign }).toString();
-
-  const url = `${ALI_BASE_URL}${apiPath}`;
-  console.log("[AliExpress] → POST", url, "(tracking)");
-
-  const raw = await fetch(url, {
+  const raw = await fetch(`${ALI_BASE_URL}${apiPath}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   }).then((r) => r.text());
 
-  const json = JSON.parse(raw);
-  const data =
-    json?.aliexpress_ds_order_tracking_get_response?.result?.data ??
-    json?.result?.data ??
-    null;
-
-  const track =
-    data?.tracking_detail_line_list?.tracking_detail?.[0]?.mail_no ?? null;
-
-  console.log(
-    "[AliExpress] Tracking lookup for",
-    orderId,
-    "→",
-    track || "no-data"
-  );
-  return track;
+  const json: any = JSON.parse(raw);
+  const svc =
+    json?.aliexpress_logistics_ds_recommend_list_response?.result
+      ?.recommend_solutions?.recommend_solution?.[0]?.logistics_service_name ??
+    "";
+  if (svc) svcCache.set(key, svc);
+  console.log("[AliExpress] recommend service for", key, "→", svc || "—");
+  return svc || "CAINIAO_STANDARD";
 }
 
-/* ────────────── AliExpress Dropshipping API Helpers ────────────── */
-
-/* ─────────────── precise TOP-HMAC-SHA256 signer ─────────────── */
+/* ---------- precise TOP-HMAC-SHA256 signer ─────────────── */
 function signAliExpressRequest(
   apiPath: string,
   rawParams: Record<string, any>,
@@ -926,4 +875,53 @@ export async function fetchSkuAttr(
 
   // if only one SKU exists the spec says it can be ""
   return list[0]?.sku_attr ?? "";
+}
+
+/* ---------- getAliOrderTracking ------------------------------------------ */
+export async function getAliOrderTracking(
+  orderId: string,
+  lang = "en_US"
+): Promise<string | null> {
+  const accessToken = await getAliAccessToken();
+
+  const method = "aliexpress.ds.order.tracking.get";
+  const apiPath = "/sync";
+  const sysParams: Record<string, string> = {
+    app_key: APP_KEY,
+    method,
+    sign_method: "sha256",
+    timestamp: topTimestamp(),
+    access_token: accessToken,
+    ae_order_id: orderId,
+    language: lang,
+  };
+
+  const sign = signAliExpressRequest(apiPath, sysParams, APP_SECRET);
+  const body = new URLSearchParams({ ...sysParams, sign }).toString();
+
+  const url = `${ALI_BASE_URL}${apiPath}`;
+  console.log("[AliExpress] → POST", url, "(tracking)");
+
+  const raw = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }).then((r) => r.text());
+
+  const json: any = JSON.parse(raw);
+  const data =
+    json?.aliexpress_ds_order_tracking_get_response?.result?.data ??
+    json?.result?.data ??
+    null;
+
+  const track =
+    data?.tracking_detail_line_list?.tracking_detail?.[0]?.mail_no ?? null;
+
+  console.log(
+    "[AliExpress] Tracking lookup for",
+    orderId,
+    "→",
+    track || "no-data"
+  );
+  return track;
 }

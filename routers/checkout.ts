@@ -165,6 +165,16 @@ router.post(
 
     const { paymentIntentId, email, shipping, phone, newsletter } = body as any;
 
+    /* ─── remove hard validation — frontend supplies these later ─── */
+    // if (!email || typeof email !== "string" || !email.trim()) {
+    //   res.status(400).json({ error: "Email is required" });
+    //   return;
+    // }
+    // if (!phone || typeof phone !== "string" || !phone.trim()) {
+    //   res.status(400).json({ error: "Phone number is required" });
+    //   return;
+    // }
+
     if (!items || items.length === 0) {
       res.status(400).json({ error: "Missing or empty items array" });
       return;
@@ -218,7 +228,7 @@ router.post(
         // ── UPDATE ──
         intent = await stripe.paymentIntents.update(paymentIntentId, {
           amount: total, // total includes tax and fees
-          payment_method_types: ["card", "alipay"], // allow AliPay (AliExpress) wallet
+          payment_method_types: ["card"],
           metadata: {
             subtotal,
             tax,
@@ -237,7 +247,7 @@ router.post(
         intent = await stripe.paymentIntents.create({
           amount: total, // total includes tax and fees
           currency: "usd",
-          payment_method_types: ["card", "alipay"], // allow AliPay (AliExpress) wallet
+          payment_method_types: ["card"],
           metadata: {
             order_number: orderNumber, // ← new
             subtotal,

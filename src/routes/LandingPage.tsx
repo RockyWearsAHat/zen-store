@@ -10,7 +10,7 @@ import { IoVolumeMute } from "react-icons/io5";
 export default function LandingPage() {
   // Image sources
   const heroImages = [
-    "/Video.mp4",
+    // "/Video.mp4",
     "/Secondary.avif",
     "/WithCables.avif",
     "/Main.avif", // Using .avif as per correction comment in original
@@ -311,15 +311,17 @@ export default function LandingPage() {
               <span className="underline text-brand">ZenFlow™ Fountain</span>
             </h1>
             <p className="text-lg md:text-xl mb-8 max-w-xl mx-auto text-stone-300">
-              Made with ceramic and wood finishes, this fountain radiates{" "}
-              tranquility into your workspace. The soothing sounds of flowing
-              water create a calm atmosphere, allowing you to relax or focus.
-              The quiet electronics, humidifier, & incense holder allow you to{" "}
+              Made with iron, ceramic and wood finishes, the latest desktop
+              fountain release from Zen Essentials radiates tranquility into
+              your space. The soothing sounds of flowing water create a calm
+              atmosphere, while quiet electronics, humidifier, & incense holder
+              allow you to{" "}
               <span className="text-brand font-bold">
-                make your space exactly the way you like, for work, meditation,
-                or relaxation
+                make your room exactly the way you like
               </span>
-              .
+              ; <span className="text-brand font-bold">for work</span>,{" "}
+              <span className="text-brand font-bold">meditation</span>,{" "}
+              <span className="text-brand font-bold">or relaxation</span>.
             </p>
             <Link
               className="text-center bg-brand text-stone-900 font-semibold
