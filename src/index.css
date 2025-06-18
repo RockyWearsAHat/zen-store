@@ -319,3 +319,28 @@ div[bis_skin_checked="1"] > img:focus {
   outline: 2px solid var(--color-brand-400) !important;
   outline-offset: 2px !important;
 }
+
+/* ---------- Stripe & checkout width fixes ---------- */
+
+/* 1. Strip the extra 8 px Stripe adds */
+iframe[src*="stripe.com"] {
+  /* 100 % instead of calc(100% + 8px) */
+  width: 100% !important;
+  margin: 0 !important; /* cancel the -4 px Stripe margin        */
+}
+
+/* 2. Make sure every direct checkout control spans the full row */
+.checkout-panel input[type="email"],
+.checkout-panel button.pay-now,
+.checkout-panel .agree-to-terms {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 3. Optional – keep the background box in sync with its content */
+.checkout-panel {
+  /* padding left/right previously hidden by Stripe’s –4 px margin */
+  padding-left: 0;
+  padding-right: 0;
+}

@@ -115,50 +115,38 @@ export default function CartPage() {
   }, [items, subtotal]);
   /* -------------------------------------------------------------------- */
 
-  /* ---------- auto-close modal when tab / window loses focus ---------- */
+  /* ---------- focus management for modal when page navigation occurs ---------- */
   useEffect(() => {
     if (!showPaymentForm) return;
 
-    let blurTimeout: NodeJS.Timeout;
+    const handleVisibilityChange = () => {
+      // When page becomes visible again, focus the modal
+      if (!document.hidden) {
+        setTimeout(() => {
+          const modal = document.querySelector('[role="dialog"]');
+          if (modal) {
+            (modal as HTMLElement).focus();
+          }
+        }, 100);
+      }
+    };
 
-    const handleBlur = () => {
-      // Add a small delay to prevent closing when just tabbing through elements
-      blurTimeout = setTimeout(() => {
-        // Only close if no element within the modal has focus
-        if (
-          !document
-            .querySelector('[role="dialog"]')
-            ?.contains(document.activeElement)
-        ) {
-          setShowPaymentForm(false);
+    const handleFocus = () => {
+      // When window regains focus, ensure modal is focused
+      setTimeout(() => {
+        const modal = document.querySelector('[role="dialog"]');
+        if (modal && showPaymentForm) {
+          (modal as HTMLElement).focus();
         }
       }, 100);
     };
 
-    const handleFocus = () => {
-      // Clear the timeout if focus returns quickly (like when tabbing through)
-      if (blurTimeout) {
-        clearTimeout(blurTimeout);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setShowPaymentForm(false);
-      }
-    };
-
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      if (blurTimeout) {
-        clearTimeout(blurTimeout);
-      }
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [showPaymentForm]);
 
@@ -324,38 +312,64 @@ export default function CartPage() {
       </div>
       {showPaymentForm && clientSecret && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.5)] p-4"
+          className="fixed inset-0 z-50 bg-[rgba(0,0,0,0.5)] flex items-start justify-center p-3 sm:p-4"
+          onClick={() => handleModalClose("click")}
           data-backdrop="true"
         >
           <div
-            className="relative bg-stone-900 text-stone-100 w-full max-w-lg rounded-xl overflow-y-auto max-h-full p-4 border border-stone-700"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="checkout-title"
-            style={{ outline: "none" }}
+            className="w-full max-w-lg my-6 sm:my-8 max-h-[calc(100vh-3rem)] sm:max-h-[calc(100vh-4rem)] overflow-y-auto checkout-modal-container bg-stone-900 border-stone-700"
+            style={{
+              scrollbarWidth: "none", // Firefox
+              msOverflowStyle: "none", // IE/Edge
+            }}
           >
-            <button
-              onClick={() => handleModalClose("click")}
-              className="absolute top-3 right-3 text-2xl hover:text-stone-300 focus:outline-none focus:ring-2 focus:ring-brand rounded"
-              aria-label="Close checkout form"
-              tabIndex={0}
+            <style>
+              {`
+                /* Hide scrollbar for WebKit browsers */
+                .checkout-modal-container::-webkit-scrollbar {
+                  display: none;
+                  width: 0;
+                  height: 0;
+                }
+                
+                /* Additional scrollbar hiding for Chrome/Safari */
+                .checkout-modal-container::-webkit-scrollbar-track {
+                  display: none;
+                }
+                
+                .checkout-modal-container::-webkit-scrollbar-thumb {
+                  display: none;
+                }
+                
+                /* Hide scrollbar in Firefox */
+                .checkout-modal-container {
+                  scrollbar-width: none;
+                  -ms-overflow-style: none;
+                }
+              `}
+            </style>
+            <div
+              className="relative text-stone-100 rounded-xl p-5 sm:p-6 border"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="checkout-title"
+              style={{ outline: "none" }}
             >
-              &times;
-            </button>
-            <Elements
-              stripe={stripePromise}
-              options={{ clientSecret, appearance: stripeAppearance }}
-            >
-              <CheckoutForm
-                clientSecret={clientSecret}
-                email={email}
-                setEmail={setEmail}
-                setShipping={setShipping}
-                setNewsletter={setNewsletter}
-                onRequestClose={handleModalClose}
-              />
-            </Elements>
+              <Elements
+                stripe={stripePromise}
+                options={{ clientSecret, appearance: stripeAppearance }}
+              >
+                <CheckoutForm
+                  clientSecret={clientSecret}
+                  email={email}
+                  setEmail={setEmail}
+                  setShipping={setShipping}
+                  setNewsletter={setNewsletter}
+                  onRequestClose={handleModalClose}
+                />
+              </Elements>
+            </div>
           </div>
         </div>
       )}

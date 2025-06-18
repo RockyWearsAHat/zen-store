@@ -466,7 +466,7 @@ export async function sendFailureEmail(
     <p>
       Your items are <strong>not</strong> on the way.  
       Please try again or contact support at
-      <a href="mailto:alexwaldmann2004@gmail.com">alexwaldmann2004@gmail.com</a>.
+      <a href="mailto:alexwaldmann2004@gmail.com">support@zen-essentials.store</a>.
     </p>
   `);
 
