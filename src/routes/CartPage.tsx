@@ -32,6 +32,7 @@ export default function CartPage() {
   const [email, setEmail] = useState("");
   const [shipping, setShipping] = useState<any>(null);
   const [newsletter, setNewsletter] = useState<boolean>(false);
+  const checkoutButtonRef = useRef<HTMLButtonElement>(null);
   const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
   // create OR update payment intent
@@ -160,6 +161,21 @@ export default function CartPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [showPaymentForm]);
+
+  // Handle modal close with focus management
+  const handleModalClose = (
+    reason?: "shift-tab" | "escape" | "tab-out" | "click"
+  ) => {
+    setShowPaymentForm(false);
+
+    // Focus the checkout button when closed via shift+tab
+    if (reason === "shift-tab" && checkoutButtonRef.current) {
+      // Small delay to ensure modal is fully closed before focusing
+      setTimeout(() => {
+        checkoutButtonRef.current?.focus();
+      }, 100);
+    }
+  };
 
   if (items.length === 0)
     return (
@@ -298,6 +314,7 @@ export default function CartPage() {
             </p>
           </div>
           <button
+            ref={checkoutButtonRef}
             onClick={() => setShowPaymentForm(true)}
             className="w-full bg-brand text-slate-900 font-bold px-8 py-3 rounded-lg hover:opacity-90"
           >
@@ -319,7 +336,7 @@ export default function CartPage() {
             style={{ outline: "none" }}
           >
             <button
-              onClick={() => setShowPaymentForm(false)}
+              onClick={() => handleModalClose("click")}
               className="absolute top-3 right-3 text-2xl hover:text-stone-300 focus:outline-none focus:ring-2 focus:ring-brand rounded"
               aria-label="Close checkout form"
               tabIndex={0}
@@ -336,7 +353,7 @@ export default function CartPage() {
                 setEmail={setEmail}
                 setShipping={setShipping}
                 setNewsletter={setNewsletter}
-                onRequestClose={() => setShowPaymentForm(false)}
+                onRequestClose={handleModalClose}
               />
             </Elements>
           </div>
