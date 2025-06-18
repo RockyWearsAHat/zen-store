@@ -3,6 +3,7 @@ import express from "express";
 import serverless from "serverless-http";
 import { router as masterRouter } from "./masterRouter";
 import { stripeWebhookRouter } from "../routers/stripeWebhook";
+import { aliOrderWebhookRouter } from "../routers/aliOrderWebhook";
 
 export const app = express();
 
@@ -13,11 +14,14 @@ app.use(
   stripeWebhookRouter
 );
 
-/* ── 2️⃣  normal body parsers for the rest ── */
+// 2️⃣ Mount AliExpress webhook with regular JSON parsing
+app.use("/api/ali-order-webhook", express.json(), aliOrderWebhookRouter);
+
+/* ── 3️⃣  normal body parsers for the rest ── */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3️⃣ Mount all other API routes
+// 4️⃣ Mount all other API routes
 app.use(masterRouter);
 
 // Health check endpoint for server

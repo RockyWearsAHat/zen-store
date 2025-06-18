@@ -107,4 +107,13 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+/* ---------- webhook verification endpoint ---------- */
+router.get("/", async (_req: Request, res: Response) => {
+  res.json({
+    status: "AliExpress webhook endpoint is active",
+    timestamp: new Date().toISOString(),
+    endpoint: "/api/ali-order-webhook",
+  });
+});
+
 export { router as aliOrderWebhookRouter };
