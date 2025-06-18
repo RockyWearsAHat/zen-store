@@ -395,10 +395,16 @@ export async function sendSuccessEmail(
     ${mapHtml}
     <!-- removed debug output of loc.marker / loc.label -->
 
+    ${
+      trackingNumber
+        ? `
     <p style="margin-top:24px">
       Track your package any time here:
       <a href="${trackBaseUrl}">Track&nbsp;Order</a>
     </p>
+    `
+        : ""
+    }
     <p style="margin-top:24px">We appreciate your business!</p>
   `);
 
