@@ -92,26 +92,63 @@ router.post("/", async (req: Request, res: Response) => {
       timestamp: new Date(timestamp * 1000).toISOString(),
     });
 
-    // Only process when order is shipped (tracking available)
-    if (orderStatus !== "OrderShipped") {
+    // Log all order status updates for debugging
+    const validStatuses = [
+      "paymentFailedEvent",
+      "OrderCreated",
+      "OrderClosed",
+      "PaymentAuthorized",
+      "OrderShipped",
+      "OrderConfirmed",
+    ];
+
+    if (!validStatuses.includes(orderStatus)) {
+      console.warn("[aliOrderWebhook] Unknown order status:", orderStatus);
+    }
+
+    // Only process when order is confirmed or shipped (tracking should be available)
+    // OrderConfirmed = order completed and ready for tracking
+    // OrderShipped = order has shipped with tracking info
+    if (orderStatus !== "OrderConfirmed" && orderStatus !== "OrderShipped") {
       console.log(
-        "[aliOrderWebhook] Order not shipped yet, status:",
-        orderStatus
+        "[aliOrderWebhook] Order not ready for tracking, status:",
+        orderStatus,
+        "- Valid statuses for tracking:",
+        ["OrderConfirmed", "OrderShipped"]
       );
       res.status(200).json({ success: true });
       return;
     }
 
-    /* fetch tracking number */
-    const trackingNumber = await getAliOrderTracking(orderId.toString());
+    console.log(
+      "[aliOrderWebhook] Order ready for tracking, fetching tracking number..."
+    );
+
+    /* fetch tracking number from AliExpress API */
+    let trackingNumber: string | null = null;
+    try {
+      trackingNumber = await getAliOrderTracking(orderId.toString());
+      console.log("[aliOrderWebhook] Tracking lookup result:", {
+        orderId,
+        trackingNumber: trackingNumber || "(none)",
+      });
+    } catch (error) {
+      console.error("[aliOrderWebhook] Error fetching tracking number:", error);
+    }
+
     if (!trackingNumber) {
       console.warn(
         "[aliOrderWebhook] No tracking number available for order:",
-        orderId
+        orderId,
+        "- Will retry when tracking becomes available"
       );
-      res.status(200).json({ success: true });
+      res
+        .status(200)
+        .json({ success: true, message: "No tracking available yet" });
       return;
     }
+
+    console.log("[aliOrderWebhook] Tracking number found:", trackingNumber);
 
     /* locate corresponding PaymentIntent by order ID */
     let intent: Stripe.PaymentIntent | undefined;
