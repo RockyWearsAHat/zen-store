@@ -31,47 +31,89 @@ const pickEmail = async (
   return null;
 };
 
-/* ---------- AliExpress push-callback ---------- */
+/* ---------- AliExpress webhook handler ---------- */
 router.post("/", async (req: Request, res: Response) => {
   try {
-    // NB: adapt key names to the exact payload AliExpress sends you
-    const orderId: string | undefined =
-      (req.body?.orderId ||
-        req.body?.order_id ||
-        req.body?.id ||
-        req.body?.ae_order_id) ??
-      undefined;
+    console.log(
+      "[aliOrderWebhook] Received payload:",
+      JSON.stringify(req.body, null, 2)
+    );
+
+    // AliExpress webhook payload structure based on docs
+    const { data, message_type, timestamp } = req.body;
+
+    if (!data || message_type !== 53) {
+      console.warn("[aliOrderWebhook] Invalid message type or missing data:", {
+        message_type,
+        hasData: !!data,
+      });
+      res.status(200).json({ success: true }); // Still return 200 for AliExpress
+      return;
+    }
+
+    const { orderId, orderStatus, buyerId } = data;
 
     if (!orderId) {
-      res.status(400).send("orderId missing in callback");
+      console.warn("[aliOrderWebhook] Missing orderId in data");
+      res.status(200).json({ success: true });
       return;
     }
 
-    console.log("[aliOrderWebhook] callback for order", orderId);
+    console.log("[aliOrderWebhook] Processing order:", {
+      orderId,
+      orderStatus,
+      buyerId,
+      timestamp: new Date(timestamp * 1000).toISOString(),
+    });
 
-    /* fetch / refresh tracking number */
-    const trackingNumber = await getAliOrderTracking(orderId);
+    // Only process when order is shipped (tracking available)
+    if (orderStatus !== "OrderShipped") {
+      console.log(
+        "[aliOrderWebhook] Order not shipped yet, status:",
+        orderStatus
+      );
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    /* fetch tracking number */
+    const trackingNumber = await getAliOrderTracking(orderId.toString());
     if (!trackingNumber) {
-      console.warn("[aliOrderWebhook] no tracking yet for", orderId);
-      res.json({ received: true });
+      console.warn(
+        "[aliOrderWebhook] No tracking number available for order:",
+        orderId
+      );
+      res.status(200).json({ success: true });
       return;
     }
 
-    /* locate corresponding PaymentIntent by metadata.order_number */
+    /* locate corresponding PaymentIntent by order ID */
     let intent: Stripe.PaymentIntent | undefined;
     try {
-      const result = await stripe.paymentIntents.search({
-        query: `metadata['order_number']:'${orderId}'`,
+      // Try searching by ali_order_id first, then order_number
+      let result = await stripe.paymentIntents.search({
+        query: `metadata['ali_order_id']:'${orderId}'`,
         limit: 1,
       });
+
+      if (result.data.length === 0) {
+        result = await stripe.paymentIntents.search({
+          query: `metadata['order_number']:'${orderId}'`,
+          limit: 1,
+        });
+      }
+
       intent = result.data[0];
     } catch (e) {
       console.error("[aliOrderWebhook] Stripe search error", e);
     }
 
     if (!intent) {
-      console.warn("[aliOrderWebhook] no PI found for order", orderId);
-      res.json({ received: true });
+      console.warn(
+        "[aliOrderWebhook] No PaymentIntent found for order:",
+        orderId
+      );
+      res.status(200).json({ success: true });
       return;
     }
 
@@ -100,10 +142,17 @@ router.post("/", async (req: Request, res: Response) => {
       console.warn("[aliOrderWebhook] no e-mail for intent", intent.id);
     }
 
-    res.json({ received: true });
+    console.log(
+      "[aliOrderWebhook] Webhook processing completed successfully for order:",
+      orderId
+    );
+    res.status(200).json({ success: true });
   } catch (err) {
-    console.error("[aliOrderWebhook] fatal", err);
-    res.status(400).send("AliExpress order webhook error");
+    console.error("[aliOrderWebhook] Error processing webhook:", err);
+    // Always return 200 to AliExpress to avoid retries
+    res
+      .status(200)
+      .json({ success: false, error: "Internal processing error" });
   }
 });
 
