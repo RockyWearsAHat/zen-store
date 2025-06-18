@@ -306,8 +306,8 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             intent,
             email,
             charge,
-            paymentMethod
-            // tracking number intentionally omitted – separate e-mail handled by aliOrderWebhook
+            paymentMethod,
+            null // explicitly exclude tracking – separate email handled by aliOrderWebhook
           );
         } else if (!orderId) {
           console.warn("Skipping success email – AliExpress order not created");

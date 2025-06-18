@@ -205,8 +205,10 @@ export async function sendSuccessEmail(
 
   /* ── live UPS location (free) ─────────────────────────────── */
   const trackingNumber =
-    explicitTracking ??
-    ((intent.metadata && intent.metadata.ali_tracking) || "");
+    explicitTracking !== null
+      ? explicitTracking ??
+        ((intent.metadata && intent.metadata.ali_tracking) || "")
+      : ""; // when explicitTracking is null, force empty string
   const trackBaseUrl = trackingNumber
     ? `https://www.ups.com/track?loc=en_US&tracknum=${trackingNumber}`
     : "#";
