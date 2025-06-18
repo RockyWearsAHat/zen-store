@@ -34,24 +34,43 @@ const pickEmail = async (
 /* ---------- AliExpress webhook handler ---------- */
 router.post("/", async (req: Request, res: Response) => {
   try {
+    // Handle case where body is received as Buffer (Netlify issue)
+    let body = req.body;
+    if (Buffer.isBuffer(req.body)) {
+      try {
+        body = JSON.parse(req.body.toString("utf8"));
+        console.log(
+          "[aliOrderWebhook] Parsed Buffer to JSON:",
+          JSON.stringify(body, null, 2)
+        );
+      } catch (parseError) {
+        console.error(
+          "[aliOrderWebhook] Failed to parse Buffer as JSON:",
+          parseError
+        );
+        res.status(400).json({ success: false, error: "Invalid JSON" });
+        return;
+      }
+    }
+
     console.log(
       "[aliOrderWebhook] Received payload:",
-      JSON.stringify(req.body, null, 2)
+      JSON.stringify(body, null, 2)
     );
     console.log("[aliOrderWebhook] Headers:", req.headers);
 
     // Handle webhook verification/challenge requests
-    if (req.body.challenge) {
+    if (body.challenge) {
       console.log(
         "[aliOrderWebhook] Verification challenge received:",
-        req.body.challenge
+        body.challenge
       );
-      res.status(200).json({ challenge: req.body.challenge });
+      res.status(200).json({ challenge: body.challenge });
       return;
     }
 
     // Handle verification by returning success for any test payload
-    if (req.body.test || req.body.verification) {
+    if (body.test || body.verification) {
       console.log("[aliOrderWebhook] Test/verification request received");
       res
         .status(200)
@@ -60,7 +79,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // AliExpress webhook payload structure based on docs
-    const { data, message_type, timestamp } = req.body;
+    const { data, message_type, timestamp } = body;
 
     console.log("[aliOrderWebhook] Destructured values:", {
       data: data,
