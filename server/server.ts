@@ -17,6 +17,7 @@ app.use(
 // 2️⃣ Mount AliExpress webhook with regular JSON parsing and CORS
 app.use(
   "/api/ali-order-webhook",
+  express.json(),
   (_req, res, next) => {
     // Add CORS headers for AliExpress
     res.header("Access-Control-Allow-Origin", "*");
@@ -24,7 +25,6 @@ app.use(
     res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
     next();
   },
-  express.json(),
   aliOrderWebhookRouter
 );
 
