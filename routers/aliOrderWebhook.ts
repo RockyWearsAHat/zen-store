@@ -62,6 +62,14 @@ router.post("/", async (req: Request, res: Response) => {
     // AliExpress webhook payload structure based on docs
     const { data, message_type, timestamp } = req.body;
 
+    console.log("[aliOrderWebhook] Destructured values:", {
+      data: data,
+      dataType: typeof data,
+      dataExists: !!data,
+      message_type: message_type,
+      timestamp: timestamp,
+    });
+
     // For initial webhook setup, AliExpress might send empty or minimal payload
     if (!data) {
       console.log("[aliOrderWebhook] Empty data - likely verification request");
