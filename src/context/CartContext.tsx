@@ -6,6 +6,68 @@ import React, {
   useEffect,
 } from "react";
 import { catalogue, Sku } from "../lib/catalogue";
+import { postTikTokEvent } from "../lib/tiktokClient"; // ← add
+
+/* ---------- TikTok helper (fires only in browser) ---------- */
+declare global {
+  interface Window {
+    ttq?: {
+      track: (
+        event: string,
+        data?: Record<string, any>,
+        opts?: Record<string, any>
+      ) => void;
+      setTestEventCode?: (code: string) => void; // ← add
+    };
+  }
+}
+
+/* helper – simple unique id for each pixel event */
+const genEventId = () =>
+  Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+/* ---------- fireAddToCart (sanitised) ---------- */
+const fireAddToCart = (item: CartItem) => {
+  if (typeof window === "undefined" || !window.ttq) return;
+
+  const qty = Math.max(Number(item.quantity ?? 1), 1);
+  const unit = item.price ?? catalogue[item.id as Sku]?.price ?? 0; // fallback
+  const value = unit * qty;
+
+  window.ttq.track("AddToCart", {
+    /* top-level params required by TikTok */
+    content_id: item.id,
+    content_name: item.title,
+    content_type: "product",
+    currency: "USD",
+    value,
+    /* optional ‘contents’ array for VSA */
+    contents: [
+      { content_id: item.id, content_name: item.title, quantity: qty },
+    ],
+    event_id: genEventId(),
+  });
+
+  /* ─── server-side twin ─── */
+  postTikTokEvent({
+    event: "AddToCart",
+    properties: {
+      contents: [
+        {
+          content_id: item.id,
+          content_name: item.title,
+          quantity: item.quantity,
+        },
+      ],
+      content_type: "product",
+      value: item.price * item.quantity,
+      currency: "USD",
+      content_id: item.id,
+      content_name: item.title,
+    },
+  });
+};
+// -------------------------------------------------------------
 
 export interface CartItem {
   id: string;
@@ -30,8 +92,14 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
-    const raw = localStorage.getItem("cart");
-    return raw ? JSON.parse(raw) : [];
+    /* safe on first render (SSR or client) */
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("cart");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
   });
 
   // persist to localStorage
@@ -39,15 +107,22 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
     localStorage.setItem("cart", JSON.stringify(items));
   }, [items]);
 
-  const addItem = (item: CartItem) => {
+  const addItem = (raw: CartItem) => {
+    /* ensure sane quantity before anything else */
+    const qty = Math.max(Number(raw.quantity ?? 1), 1);
+    const item = { ...raw, quantity: qty };
+
+    /* 🔔 always fire the TikTok pixel */
+    fireAddToCart(item);
+
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.id === item.id);
       if (idx !== -1) {
         const copy = [...prev];
-        copy[idx].quantity += item.quantity;
+        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + qty };
         return copy;
       }
-      return [...prev, item];
+      return [...prev, { ...item, quantity: qty }];
     });
   };
 

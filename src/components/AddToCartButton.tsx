@@ -9,7 +9,7 @@ export default function AddToCartButton({ product }: { product: any }) {
 
   const handleAddToCart = () => {
     setIsAdding(true);
-    addItem(product);
+    addItem({ ...product, quantity: product.quantity ?? 1 });
     setShowAdded(true);
     setTimeout(() => {
       setIsAdding(false);

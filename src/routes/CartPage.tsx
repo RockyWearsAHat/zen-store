@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import CheckoutForm from "../components/CheckoutForm";
 import { stripeAppearance } from "../lib/stripeAppearance";
 import { catalogue, Sku } from "../lib/catalogue";
+import { postTikTokEvent } from "../lib/tiktokClient"; // ← add
 
 // helpers for localStorage
 /* guard against the literal string "undefined" leaking into Stripe */
@@ -21,6 +22,16 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`;
 // returns the first valid image url it finds
 const getItemImage = (item: any) =>
   item.image || item.imageUrl || item.thumbnail || item.img || "/Main.avif"; // ← updated fallback
+
+/* ---------- TikTok helpers ---------- */
+
+const trackPixel = (name: string, props: Record<string, any> = {}) => {
+  if (typeof window !== "undefined" && window.ttq) {
+    window.ttq.track(name, props);
+  }
+  postTikTokEvent({ event: name, properties: props });
+};
+// -------------------------------------
 
 export default function CartPage() {
   const { items, subtotal, removeItem, updateQuantity } = useCart();
@@ -165,6 +176,46 @@ export default function CartPage() {
     }
   };
 
+  /* ---------- 1️⃣  cart page view ---------- */
+  useEffect(() => {
+    if (items.length === 0) return;
+    const contents = items.map((i) => ({
+      content_id: i.id,
+      content_name: i.title,
+      quantity: i.quantity,
+    }));
+    const common = {
+      content_type: "product",
+      contents,
+      content_id: contents[0]?.content_id,
+      content_name: contents[0]?.content_name,
+      currency: "USD",
+      value: subtotal,
+    };
+    trackPixel("ViewCart", common); // single event
+    // fire only once per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---------- helper to open checkout & fire event ---------- */
+  const openCheckout = () => {
+    const contents = items.map((i) => ({
+      content_id: i.id,
+      content_name: i.title,
+      quantity: i.quantity,
+    }));
+    const value = total / 100;
+    trackPixel("InitiateCheckout", {
+      content_type: "product",
+      contents,
+      content_id: contents[0]?.content_id,
+      content_name: contents[0]?.content_name,
+      currency: "USD",
+      value,
+    });
+    setShowPaymentForm(true);
+  };
+
   if (items.length === 0)
     return (
       <div className="mt-24 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex absolute flex-col items-center justify-center text-center">
@@ -303,7 +354,7 @@ export default function CartPage() {
           </div>
           <button
             ref={checkoutButtonRef}
-            onClick={() => setShowPaymentForm(true)}
+            onClick={openCheckout}
             className="w-full bg-brand text-slate-900 font-bold px-8 py-3 rounded-lg hover:opacity-90"
           >
             Checkout

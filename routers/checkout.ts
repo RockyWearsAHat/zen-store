@@ -260,6 +260,7 @@ router.post(
           },
           receipt_email: email || undefined,
         });
+        // await fireInitiate(intent); // ←  fire event only for create
       }
       res.json({ id: intent.id, clientSecret: intent.client_secret });
     } catch (err: any) {
@@ -268,6 +269,32 @@ router.post(
     }
   }
 );
+
+router.get("/retrieve-payment-intent", async (req, res) => {
+  const { clientSecret, expandCards } = req.query as {
+    clientSecret: string;
+    expandCards?: string;
+  };
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const intent = (await stripe.paymentIntents.retrieve(
+      clientSecret.split("_secret_")[0],
+      expandCards === "1"
+        ? { expand: ["charges.data.payment_method_details.card"] }
+        : {}
+    )) as Stripe.PaymentIntent;
+    let brand, last4;
+    if (expandCards === "1" && (intent as any)?.charges?.data?.length) {
+      const card = (intent as any).charges.data[0].payment_method_details?.card;
+      brand = card?.brand;
+      last4 = card?.last4;
+    }
+    res.json({ amount: intent.amount, brand, last4 });
+  } catch (err: any) {
+    console.error("Stripe retrieve error", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/retrieve-payment-intent", async (req, res) => {
   const { clientSecret, expandCards } = req.query as {

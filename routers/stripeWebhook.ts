@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { sendSuccessEmail, sendFailureEmail } from "./email.js";
 import { createAliExpressOrder, fetchSkuAttr } from "./aliexpress";
 import mongoose from "mongoose";
+import { sendTikTokEvent } from "../server/utils/tiktok"; // ← NEW
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -313,6 +314,30 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
           console.warn("Skipping success email – AliExpress order not created");
         } else {
           console.warn("Skipping success email – no e-mail address found");
+        }
+
+        /* ---------- TikTok Purchase event ---------- */
+        try {
+          const contents = raw.map((i: any) => ({
+            content_id: i.aliId ?? i.id,
+            content_name: i.title ?? i.id,
+          }));
+          await sendTikTokEvent({
+            event: "Purchase",
+            event_time: Date.now().toString(),
+            user: {
+              email,
+              ip: req.ip ?? null, // ← add IP
+              user_agent: req.get("User-Agent") ?? null, // optional UA
+            },
+            properties: {
+              value: intent.amount / 100,
+              currency: intent.currency.toUpperCase(),
+              contents,
+            },
+          });
+        } catch (e) {
+          console.error("[tiktok] purchase send failed", e);
         }
       } catch (err) {
         console.error("AliExpress order failed (immediate):", err);

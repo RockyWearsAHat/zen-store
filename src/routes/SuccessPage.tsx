@@ -12,99 +12,102 @@ export default function SuccessPage() {
     clearCart();
   }, []);
 
+  /*  ─── UI ───────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100 flex items-center justify-center px-4 pt-20 pb-8">
-      <div className="max-w-2xl w-full text-center space-y-8">
-        {/* Success Icon */}
-        <div className="flex justify-center">
-          <div className="relative">
-            <div className="w-20 h-20 bg-brand rounded-full flex items-center justify-center">
-              <FaCheckCircle className="text-stone-900 text-4xl" />
-            </div>
-            <div className="absolute inset-0 w-20 h-20 bg-brand rounded-full animate-ping opacity-20"></div>
-          </div>
-        </div>
-
-        {/* Main Message */}
+    /* full-height hero background */
+    <div
+      className="min-h-dvh w-full bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950
+                    flex items-center justify-center px-4 pt-24 pb-16" /* ↑ add extra top padding */
+    >
+      {/* glass card */}
+      <div
+        className="w-full max-w-2xl bg-stone-800/80 backdrop-blur
+                   rounded-2xl shadow-xl ring-1 ring-stone-700/50 p-10
+                   text-center space-y-10"
+      >
+        {/* icon + title */}
         <div className="space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-brand">
-            Thank You!
+          <div className="relative inline-flex">
+            <div className="w-24 h-24 bg-brand rounded-full flex items-center justify-center">
+              <FaCheckCircle className="text-stone-900 text-5xl" />
+            </div>
+            <div className="absolute inset-0 w-24 h-24 bg-brand rounded-full animate-ping opacity-20" />
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-extrabold text-brand">
+            Thank&nbsp;You!
           </h1>
-          <h2 className="text-xl md:text-2xl text-stone-300">
-            Your Order Has Been Confirmed
-          </h2>
+          <p className="text-lg md:text-xl text-stone-300">
+            Your order has been confirmed
+          </p>
         </div>
 
-        {/* Success Details */}
-        <div className="bg-stone-800 rounded-lg p-6 space-y-4">
+        {/* details card */}
+        <div className="bg-stone-900/70 rounded-xl p-6 space-y-4 ring-1 ring-stone-700/60">
           <div className="flex items-center justify-center gap-2 text-brand">
-            <FaEnvelope className="text-lg" />
+            <FaEnvelope className="text-xl shrink-0" />
             <span className="font-medium">
-              Your Receipt Email Will Arrive in Your Inbox Shortly
+              Your receipt will arrive in your inbox shortly
             </span>
           </div>
-
-          <p className="text-stone-300 leading-relaxed">
-            We've sent a confirmation email with your order details. You'll
+          <p className="text-sm text-stone-400 leading-relaxed">
+            We’ve sent a confirmation email with your order details. You’ll
             receive tracking information once your order ships.
           </p>
 
+          {/* reference */}
           {params.get("session_id") && (
-            <div className="pt-4 border-t border-stone-700">
-              <p className="text-sm text-stone-400">
-                Order Reference:{" "}
-                <span className="font-mono text-stone-300">
-                  {params.get("session_id")}
-                </span>
-              </p>
-            </div>
+            <p className="pt-4 border-t border-stone-700 text-xs text-stone-500">
+              Order&nbsp;Reference:&nbsp;
+              <span className="font-mono text-stone-300">
+                {params.get("session_id")}
+              </span>
+            </p>
           )}
         </div>
 
-        {/* What's Next */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-stone-200">What's Next?</h3>
-          <div className="grid md:grid-cols-2 gap-4 text-sm">
-            <div className="bg-stone-800/50 rounded-lg p-4">
-              <div className="font-medium text-brand mb-2">1. Processing</div>
-              <p className="text-stone-400">
-                Your order is being prepared for shipment
-              </p>
+        {/* next steps */}
+        <div>
+          <h3 className="text-base font-semibold mb-4 text-stone-200">
+            What’s&nbsp;Next?
+          </h3>
+          <div className="grid sm:grid-cols-2 gap-4 text-sm text-stone-300">
+            <div className="bg-stone-800/60 rounded-lg p-4 space-y-1">
+              <p className="font-medium text-brand">1.&nbsp;Processing</p>
+              <p>Your order is being prepared for shipment.</p>
             </div>
-            <div className="bg-stone-800/50 rounded-lg p-4">
-              <div className="font-medium text-brand mb-2">2. Tracking</div>
-              <p className="text-stone-400">
-                You'll receive tracking details via email
-              </p>
+            <div className="bg-stone-800/60 rounded-lg p-4 space-y-1">
+              <p className="font-medium text-brand">2.&nbsp;Tracking</p>
+              <p>You’ll receive tracking details via email.</p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+        {/* actions */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 bg-brand text-stone-900 px-6 py-3 rounded-lg font-medium hover:bg-brand/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-brand
+                       text-stone-900 px-6 py-3 rounded-lg font-semibold
+                       hover:bg-brand/90 transition"
           >
-            <FaHome />
-            Continue Shopping
+            <FaHome /> Continue&nbsp;Shopping
           </Link>
-
           <a
             href="mailto:alexwaldmann2004@gmail.com"
-            className="inline-flex items-center gap-2 border border-stone-600 text-stone-300 px-6 py-3 rounded-lg font-medium hover:bg-stone-800 transition-colors"
+            className="inline-flex items-center justify-center gap-2
+                       border border-stone-600 text-stone-300 px-6 py-3
+                       rounded-lg font-semibold hover:bg-stone-800 transition"
           >
-            <FaEnvelope />
-            Contact Support
+            <FaEnvelope /> Contact&nbsp;Support
           </a>
         </div>
 
-        {/* Footer Message */}
-        <div className="pt-8">
-          <p className="text-stone-400 text-sm">
-            Thank you for choosing Zen Essentials. We appreciate your business!
-          </p>
-        </div>
+        {/* footer */}
+        <p className="text-xs text-stone-500">
+          Thank you for choosing Zen&nbsp;Essentials. We appreciate your
+          business!
+        </p>
       </div>
     </div>
   );
