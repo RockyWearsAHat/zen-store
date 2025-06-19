@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         by contacting&nbsp;
         <a
           className="underline text-brand"
-          href="mailto:support@zen-essentials.store"
+          href="mailto:alexwaldmann2004@gmail.com"
         >
           support@zen-essentials.store
         </a>

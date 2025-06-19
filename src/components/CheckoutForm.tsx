@@ -43,7 +43,7 @@ export default function CheckoutForm({
 
   // Check if form is complete
   const isFormComplete =
-    stripe && email.trim() && addressComplete && paymentComplete;
+    !!stripe && email.trim() !== "" && addressComplete && paymentComplete; // force boolean
 
   // Remove focus from page elements when modal opens, but don't auto-focus anything
   useLayoutEffect(() => {
@@ -414,6 +414,8 @@ export default function CheckoutForm({
               boxShadow:
                 "0px 2px 4px rgba(0, 0, 0, 0.5), 0px 1px 6px rgba(0, 0, 0, 0.25)",
             }}
+            disabled={loading || !isFormComplete}
+            aria-disabled={loading || !isFormComplete}
             aria-live="polite"
           >
             {loading ? "Processing…" : "Pay Now"}
@@ -458,15 +460,57 @@ export default function CheckoutForm({
               width: 100%;
               max-height: calc(100vh - 6rem);
               overflow-y: auto;
-              box-shadow:
-                0 20px 30px rgba(0,0,0,.75),
-                0 8px 12px rgba(0,0,0,.45);
+              /* Hide scrollbar (cross-browser) */
+              -ms-overflow-style: none;   /* IE & Edge */
+              scrollbar-width: none;      /* Firefox */
+            }
+            /* Chrome, Safari & Opera */
+            .checkout-card::-webkit-scrollbar{ display:none; }
+
+            /* ---------- WIDTH / ALIGNMENT ---------- */
+            /* Keep the 4 px left offset but shrink the row 8 px to match Stripe width */
+            .checkout-card .aligned-field:not(.stripe-element-wrapper){
+              margin-left:4px !important;             /* left edges already match */
+              width:calc(100% - 8px) !important;      /* pull right edge in by 4 px */
             }
 
-            /* ---------- ORIGINAL CLOSE BUTTON POSITIONING ---------- */
-            /* The real button is supplied by the parent modal and already has
-               aria-label="Close checkout form".  We just make it look / sit
-               right. */
+            /* keep inner elements full-width inside their own box */
+            .checkout-card .aligned-field input,
+            .checkout-card .aligned-field button,
+            .checkout-card .aligned-field p{
+              width:100%!important;
+              box-sizing:border-box;
+            }
+
+            /* ---------- EMAIL SHADOW RESTORE ---------- */
+            #email{
+              box-shadow:0px 2px 4px rgba(0,0,0,0.5),
+                         0px 1px 6px rgba(0,0,0,0.25)!important;
+            }
+
+            /* ---------- EMAIL BACKGROUND CONSISTENCY ---------- */
+            #email,
+            #email:hover,
+            #email:focus,
+            #email:active{
+              background-color:rgb(39,39,42)!important;
+            }
+            /* Autofill (Chrome/Safari) */
+            #email:-webkit-autofill,
+            #email:-webkit-autofill:hover,
+            #email:-webkit-autofill:focus,
+            #email:-webkit-autofill:active{
+              -webkit-box-shadow:0 0 0 1000px rgb(39,39,42) inset!important;
+              -webkit-text-fill-color:rgb(245,245,244)!important;
+              caret-color:rgb(245,245,244)!important;
+            }
+            /* Autofill (Firefox) */
+            #email:-moz-autofill{
+              background-color:rgb(39,39,42)!important;
+              color:rgb(245,245,244)!important;
+            }
+
+            /* ---------- ORIGINAL RULES (unchanged) ---------- */
             .checkout-card [aria-label="Close checkout form"]{
               position:absolute;
               top:0.75rem;              
@@ -611,45 +655,6 @@ export default function CheckoutForm({
             .aligned-field button{
               width:100%!important;
               box-sizing:border-box;
-            }
-
-            /* ---------- FINAL width fix ---------- */
-            /* kill Stripe’s internal -4px side-margins everywhere */
-            .stripe-element-wrapper iframe,
-            .stripe-element-wrapper > div,
-            .stripe-element-wrapper > div > div,
-            .stripe-element-wrapper .Input,
-            .stripe-element-wrapper .p-FauxInput,
-            .stripe-element-wrapper .p-Input {
-              width: 100% !important;
-              margin: 0 !important;
-              box-sizing: border-box;
-            }
-
-            /* ---------- LAST-MILE Stripe alignment ---------- */
-            /* Any element whose inline-style still says  “calc(100% + 8px)” */
-            .stripe-element-wrapper [style*="100% + 8"] {
-              width: 100% !important;
-            }
-
-            /* Any element that keeps Stripe’s -4 px side-margins */
-            .stripe-element-wrapper [style*="margin: -4px"],
-            .stripe-element-wrapper [style*="margin:-4px"] {
-              margin-left: 0 !important;
-              margin-right: 0 !important;
-            }
-
-            /* ---------- FINAL alignment fix ---------- */
-            /* 1.  Inline rule ending with  width:calc(100% + 8px) */
-            .stripe-element-wrapper *[style*="calc(100% + 8px)"] {
-              width: 100% !important;
-            }
-
-            /* 2.  Inline rule that sets  margin:-4px  (with or without space) */
-            .stripe-element-wrapper *[style*="margin: -4px"],
-            .stripe-element-wrapper *[style*="margin:-4px"] {
-              margin-left: 0 !important;
-              margin-right: 0 !important;
             }
           `}
         </style>
