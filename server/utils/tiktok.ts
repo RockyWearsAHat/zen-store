@@ -49,8 +49,11 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
     };
 
     /* ---------- build endpoint (attach test flag only if provided) ---------- */
-    const url = new URL("https://business-api.tiktok.com/open_api/v1.3/event/track/");
-    if (payload.test_event_code) url.searchParams.set("test_event_code", payload.test_event_code);
+    const url = new URL(
+      "https://business-api.tiktok.com/open_api/v1.3/event/track/"
+    );
+    if (payload.test_event_code)
+      url.searchParams.set("test_event_code", payload.test_event_code);
 
     const res = await fetch(url.toString(), {
       method: "POST",
@@ -67,10 +70,6 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
     } else {
       console.log("[tiktok] sent", payload.event, "→", txt.slice(0, 120));
     }
-  } catch (e) {
-    console.error("[tiktok] fatal", e);
-  }
-}
   } catch (e) {
     console.error("[tiktok] fatal", e);
   }
