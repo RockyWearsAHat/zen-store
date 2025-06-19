@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import CheckoutForm from "../components/CheckoutForm";
 import { stripeAppearance } from "../lib/stripeAppearance";
 import { catalogue, Sku } from "../lib/catalogue";
-import { postTikTokEvent } from "../lib/tiktokClient"; // ← add
+import { trackTikTokEvent } from "../lib/tiktokClient"; // ← add
 
 // helpers for localStorage
 /* guard against the literal string "undefined" leaking into Stripe */
@@ -24,13 +24,7 @@ const getItemImage = (item: any) =>
   item.image || item.imageUrl || item.thumbnail || item.img || "/Main.avif"; // ← updated fallback
 
 /* ---------- TikTok helpers ---------- */
-
-const trackPixel = (name: string, props: Record<string, any> = {}) => {
-  if (typeof window !== "undefined" && window.ttq) {
-    window.ttq.track(name, props);
-  }
-  postTikTokEvent({ event: name, properties: props });
-};
+const trackPixel = trackTikTokEvent; // alias for brevity
 // -------------------------------------
 
 export default function CartPage() {

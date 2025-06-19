@@ -9,7 +9,7 @@ import {
 import { useState, useRef, useEffect } from "react"; // ↞ new (for hover logic)
 import { IoCheckmark } from "react-icons/io5";
 import { catalogue } from "../lib/catalogue";
-import { postTikTokEvent } from "../lib/tiktokClient"; // ← add
+import { trackTikTokEvent } from "../lib/tiktokClient"; // ← add
 
 /* small helper reused from ReviewsCarousel */
 function StarRating({ value }: { value: number }) {
@@ -242,20 +242,13 @@ const product = {
   ],
 };
 
-const trackPixel = (name: string, props: Record<string, any> = {}) => {
-  if (typeof window !== "undefined" && window.ttq) {
-    window.ttq.track(name, props);
-  }
-  postTikTokEvent({ event: name, properties: props });
-};
-
 export default function ProductPage() {
   const { addItem } = useCart();
   const [isAdding, setIsAdding] = useState(false);
   const [showAdded, setShowAdded] = useState(false);
 
   useEffect(() => {
-    trackPixel("ViewContent", {
+    trackTikTokEvent("ViewContent", {
       content_id: product.id,
       content_name: product.title,
       content_type: "product",

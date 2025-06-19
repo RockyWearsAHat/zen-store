@@ -6,7 +6,7 @@ import React, {
   useEffect,
 } from "react";
 import { catalogue, Sku } from "../lib/catalogue";
-import { postTikTokEvent } from "../lib/tiktokClient"; // ← add
+import { trackTikTokEvent } from "../lib/tiktokClient"; // add
 
 /* ---------- TikTok helper (fires only in browser) ---------- */
 declare global {
@@ -18,13 +18,10 @@ declare global {
         opts?: Record<string, any>
       ) => void;
       setTestEventCode?: (code: string) => void; // ← add
+      identify?: (payload: Record<string, any>) => void; // ← NEW
     };
   }
 }
-
-/* helper – simple unique id for each pixel event */
-const genEventId = () =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /* ---------- fireAddToCart (sanitised) ---------- */
 const fireAddToCart = (item: CartItem) => {
@@ -45,31 +42,17 @@ const fireAddToCart = (item: CartItem) => {
     contents: [
       { content_id: item.id, content_name: item.title, quantity: qty },
     ],
-    event_id: genEventId(),
   });
 
-  /* ─── server-side twin ─── */
-  postTikTokEvent({
-    event: "AddToCart",
-    user: {
-      email: "", // ← use empty string if not available
-      phone: "", // ← use empty string if not available
-      external_id: "", // ← pass an ID if you have one
-    },
-    properties: {
-      contents: [
-        {
-          content_id: item.id,
-          content_name: item.title,
-          quantity: item.quantity,
-        },
-      ],
-      content_type: "product",
-      value: item.price * item.quantity,
-      currency: "USD",
-      content_id: item.id,
-      content_name: item.title,
-    },
+  trackTikTokEvent("AddToCart", {
+    content_id: item.id,
+    content_name: item.title,
+    content_type: "product",
+    currency: "USD",
+    value,
+    contents: [
+      { content_id: item.id, content_name: item.title, quantity: qty },
+    ],
   });
 };
 // -------------------------------------------------------------
