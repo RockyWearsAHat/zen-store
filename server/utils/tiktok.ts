@@ -28,6 +28,7 @@ interface TikTokEvent {
     value?: number | null;
   };
   page?: { url?: string | null };
+  test_event_code?: string; // ← NEW
 }
 
 /* tiny wrapper – never throws, logs instead */
@@ -35,16 +36,21 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
   try {
     if (!TIKTOK_TOKEN) throw new Error("TIKTOK_ACCESS_TOKEN not set");
 
+    /* ----- normalise event_time to seconds ----- */
+    const ms = Number(payload.event_time);
+    if (!Number.isNaN(ms) && ms > 1e12) {
+      payload.event_time = Math.floor(ms / 1000).toString();
+    }
+
     const body = {
       event_source: "web",
       event_source_id: TIKTOK_PIXEL_ID,
       data: [payload],
     };
 
-    /* ---------- build endpoint (add ?test_event_code=…) ---------- */
-    const url = new URL(
-      "https://business-api.tiktok.com/open_api/v1.3/event/track/"
-    );
+    /* ---------- build endpoint (attach test flag only if provided) ---------- */
+    const url = new URL("https://business-api.tiktok.com/open_api/v1.3/event/track/");
+    if (payload.test_event_code) url.searchParams.set("test_event_code", payload.test_event_code);
 
     const res = await fetch(url.toString(), {
       method: "POST",
@@ -61,6 +67,10 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
     } else {
       console.log("[tiktok] sent", payload.event, "→", txt.slice(0, 120));
     }
+  } catch (e) {
+    console.error("[tiktok] fatal", e);
+  }
+}
   } catch (e) {
     console.error("[tiktok] fatal", e);
   }

@@ -12,7 +12,10 @@ tiktokRouter.post("/event", async (req: Request, res: Response) => {
     }
 
     /* guarantee an event_time for TikTok */
-    const payload = { event_time: Date.now().toString(), ...body };
+    const payload = {
+      event_time: Math.floor(Date.now() / 1000).toString(), // ← seconds
+      ...body,
+    };
     await sendTikTokEvent(payload as any);
 
     res.json({ ok: true });
