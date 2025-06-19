@@ -51,6 +51,11 @@ const fireAddToCart = (item: CartItem) => {
   /* ─── server-side twin ─── */
   postTikTokEvent({
     event: "AddToCart",
+    user: {
+      email: "", // ← use empty string if not available
+      phone: "", // ← use empty string if not available
+      external_id: "", // ← pass an ID if you have one
+    },
     properties: {
       contents: [
         {

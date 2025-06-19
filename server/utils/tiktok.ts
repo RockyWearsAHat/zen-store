@@ -13,7 +13,7 @@ interface TikTokEvent {
   user?: {
     email?: string | null;
     phone?: string | null;
-    external_id?: string | null;
+    external_id?: string | null; // ← add
     ip?: string | null;
     user_agent?: string | null;
     ttclid?: string | null;
