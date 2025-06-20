@@ -56,6 +56,10 @@ function ensureContentId(props: TikTokEvent["properties"] = {}) {
     if (!props.content_name)
       props.content_name = props.contents[0].content_name;
   }
+
+  /* always tag commerce events */
+  if (!props.content_type) props.content_type = "product";
+
   return props;
 }
 

@@ -44,9 +44,14 @@ const ensureContentId = (props: Record<string, any>) => {
       props.content_name = props.contents[0].content_name;
     if (!props.content_type) props.content_type = "product";
   }
+
   /* fallback – if caller passed only id & title */
   if (!props.content_name && props.content_id)
     props.content_name = props.content_id;
+
+  /* guarantee commerce classification */
+  if (!props.content_type) props.content_type = "product";
+
   return props;
 };
 
