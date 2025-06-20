@@ -6,7 +6,7 @@ import React, {
   useEffect,
 } from "react";
 import { catalogue, Sku } from "../lib/catalogue";
-import { trackTikTokEvent } from "../lib/tiktokClient"; // add
+import { trackTikTokEvent } from "../lib/tiktokClient";
 
 /* ---------- TikTok helper (fires only in browser) ---------- */
 declare global {
@@ -57,12 +57,16 @@ const fireAddToCart = (item: CartItem) => {
 };
 // -------------------------------------------------------------
 
+// ------------------ TYPES ------------------
 export interface CartItem {
   id: string;
   title: string;
   price: number; // dollars
   quantity: number;
   image?: string; // ← new (optional)
+  /* new optional fields – silence TS2339 */
+  name?: string;
+  sku?: string;
 }
 
 interface CartCtx {
@@ -95,6 +99,7 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
     localStorage.setItem("cart", JSON.stringify(items));
   }, [items]);
 
+  // ------------------ ACTIONS -----------------
   const addItem = (raw: CartItem) => {
     /* ensure sane quantity before anything else */
     const qty = Math.max(Number(raw.quantity ?? 1), 1);
@@ -102,6 +107,22 @@ export const CartProvider: React.FC<React.PropsWithChildren> = ({
 
     /* 🔔 always fire the TikTok pixel */
     fireAddToCart(item);
+
+    /* ---- TikTok AddToCart – fire exactly once per call ---- */
+    trackTikTokEvent("AddToCart", {
+      content_id: item.id,
+      content_name: item.title /* falls back to .name if provided */,
+      content_type: "product",
+      currency: "USD",
+      value: item.price,
+      contents: [
+        {
+          content_id: item.id,
+          content_name: item.title,
+          quantity: 1,
+        },
+      ],
+    });
 
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.id === item.id);

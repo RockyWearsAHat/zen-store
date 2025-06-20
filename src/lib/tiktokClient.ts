@@ -40,7 +40,13 @@ export async function identifyTikTokUser(user: {
 const ensureContentId = (props: Record<string, any>) => {
   if (!props.content_id && Array.isArray(props.contents) && props.contents[0]) {
     props.content_id = props.contents[0].content_id;
+    if (!props.content_name)
+      props.content_name = props.contents[0].content_name;
+    if (!props.content_type) props.content_type = "product";
   }
+  /* fallback – if caller passed only id & title */
+  if (!props.content_name && props.content_id)
+    props.content_name = props.content_id;
   return props;
 };
 
@@ -68,12 +74,23 @@ export async function postTikTokEvent(payload: {
     ...(IS_TEST_BUILD ? { test_event_code: TEST_CODE } : {}),
   };
 
+  const json = JSON.stringify(body);
+
+  /* prefer Beacon when available (fire-and-forget, survives redirect) */
+  if (navigator.sendBeacon) {
+    const ok = navigator.sendBeacon(
+      "/api/tiktok/event",
+      new Blob([json], { type: "application/json" })
+    );
+    return ok;
+  }
+
   try {
     const res = await fetch("/api/tiktok/event", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      keepalive: true, // survive page unload
+      body: json,
+      keepalive: true,
     });
     if (!res.ok && import.meta.env.DEV) {
       console.error("[TikTok] proxy error", await res.text());

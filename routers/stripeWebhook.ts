@@ -327,13 +327,17 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             event_time: Date.now().toString(),
             user: {
               email,
-              ip: req.ip ?? null, // ← add IP
-              user_agent: req.get("User-Agent") ?? null, // optional UA
+              ip: req.ip ?? null,
+              user_agent: req.get("User-Agent") ?? null,
             },
             properties: {
               value: intent.amount / 100,
               currency: intent.currency.toUpperCase(),
               contents,
+              content_type: "product",
+              /* ensure TikTok receives a primary id/name */
+              content_id: contents[0]?.content_id,
+              content_name: contents[0]?.content_name,
             },
           });
         } catch (e) {

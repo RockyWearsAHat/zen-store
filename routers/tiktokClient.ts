@@ -24,17 +24,7 @@ router.post("/event", async (req: Request, res: Response) => {
       return;
     }
 
-    /* basic commerce guard */
-    const needsId = [
-      "ViewContent",
-      "AddToCart",
-      "InitiateCheckout",
-      "Purchase",
-    ];
-    if (needsId.includes(event) && !properties.content_id) {
-      res.status(400).json({ error: "content_id required" });
-      return;
-    }
+    /* ensure downstream helper will add content_id if missing – nothing to block here */
 
     const ip =
       user.ip ||

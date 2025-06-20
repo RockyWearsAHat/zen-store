@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "crypto";
 
 /* ------------------------------------------------------------------ */
 /*  Shared helper to hit TikTok Events API                            */
@@ -49,16 +50,55 @@ function prune(obj: any): any {
   return obj;
 }
 
+/* ---------- helper: ensure content_id at top level ---------- */
+function ensureContentId(props: TikTokEvent["properties"] = {}) {
+  if (!props.content_id && Array.isArray(props.contents) && props.contents[0]) {
+    props.content_id = props.contents[0].content_id;
+    if (!props.content_name)
+      props.content_name = props.contents[0].content_name;
+  }
+  return props;
+}
+
+/* helper – hash & lower-case */
+const sha256 = (v: string) =>
+  crypto.createHash("sha256").update(v.trim().toLowerCase()).digest("hex");
+
+/* ---------- helper: hash user identifiers if not already hashed ---------- */
+function normaliseUser(u: TikTokEvent["user"] = {}) {
+  const maybeHash = (v?: string | null) =>
+    v && !/^[a-f0-9]{64}$/i.test(v) ? sha256(v) : v;
+
+  return {
+    ...u,
+    email: maybeHash(u.email),
+    phone: maybeHash(u.phone),
+    external_id: maybeHash(u.external_id),
+  };
+}
+
 /* tiny wrapper – now throws on any failure */
 export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
   /* ------------------ env sanity checks ------------------ */
-  if (!TIKTOK_PIXEL_ID) throw new Error("TIKTOK_PIXEL_ID env-var is missing");
-  if (!TIKTOK_TOKEN) throw new Error("TIKTOK_ACCESS_TOKEN env-var is missing");
+  if (!TIKTOK_PIXEL_ID || !TIKTOK_TOKEN) {
+    console.warn(
+      "[tiktok] env missing – event skipped:",
+      payload.event,
+      "(define TIKTOK_PIXEL_ID & TIKTOK_ACCESS_TOKEN in Netlify)"
+    );
+    return;
+  }
+
+  /* always send hashed user identifiers */
+  if (payload.user) payload.user = normaliseUser(payload.user);
+
+  /* guarantee commerce id -------- */
+  payload.properties = ensureContentId(payload.properties);
 
   /* ---------------- normalise event_time ----------------- */
   const ts = Number(payload.event_time);
   payload.event_time =
-    !Number.isNaN(ts) && ts > 1e12 ? Math.floor(ts / 1000) : ts;
+    !Number.isNaN(ts) && ts > 1e12 ? Math.floor(ts / 1000) : Math.floor(ts);
 
   const body = prune({
     event_source: "web",

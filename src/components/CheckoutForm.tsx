@@ -8,6 +8,7 @@ import { useState, useEffect, FormEvent, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { IoClose } from "react-icons/io5";
+import { trackTikTokEvent } from "../lib/tiktokClient";
 
 interface Props {
   clientSecret: string;
@@ -40,6 +41,7 @@ export default function CheckoutForm({
   const [isFirstTab, setIsFirstTab] = useState(true);
   const formRef = useRef<HTMLFormElement | null>(null);
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+  const sentInit = useRef(false);
 
   // Check if form is complete
   const isFormComplete =
@@ -187,6 +189,31 @@ export default function CheckoutForm({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onRequestClose]);
 
+  /* fire InitiateCheckout exactly once */
+  useEffect(() => {
+    if (!sentInit.current) {
+      trackTikTokEvent(
+        "InitiateCheckout",
+        {
+          content_id: "ZenFlowFountain",
+          content_name: "ZenFlow™ Fountain",
+          content_type: "product",
+          currency: "USD",
+          value: total ?? undefined,
+          contents: [
+            {
+              content_id: "ZenFlowFountain",
+              content_name: "ZenFlow™ Fountain",
+              quantity: 1,
+            },
+          ],
+        }
+        /* user/page left unchanged */
+      );
+      sentInit.current = true;
+    }
+  }, [total]); // wait for price if available
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
@@ -203,22 +230,22 @@ export default function CheckoutForm({
       return;
     }
     if (paymentIntent && paymentIntent.status === "succeeded") {
-      // Fetch brand & last4
-      try {
-        const resp = await fetch(
-          `/api/retrieve-payment-intent?clientSecret=${clientSecret}&expandCards=1`
-        );
-        if (resp.ok) {
-          const { brand, last4 } = await resp.json();
-          if (brand && last4) {
-            alert(
-              `Payment complete. Card used: ${brand.toUpperCase()} ****${last4}`
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Unable to retrieve card info", err);
-      }
+      /* TikTok – order placed */
+      trackTikTokEvent("PlaceAnOrder", {
+        content_id: "ZenFlowFountain",
+        content_name: "ZenFlow™ Fountain",
+        content_type: "product",
+        value: total ?? undefined,
+        currency: "USD",
+        contents: [
+          {
+            content_id: "ZenFlowFountain",
+            content_name: "ZenFlow™ Fountain",
+            quantity: 1,
+          },
+        ],
+      });
+
       clearCart();
       localStorage.removeItem("paymentIntentId");
       navigate("/success");
