@@ -20,6 +20,12 @@ router.post("/event", async (req: Request, res: Response) => {
       } catch (_) {
         /* ignore – will fail the event check below */
       }
+    } else if (Buffer.isBuffer(req.body)) {
+      try {
+        req.body = JSON.parse(req.body.toString("utf8"));
+      } catch {
+        /* ignore – validation below will fail */
+      }
     }
 
     const {

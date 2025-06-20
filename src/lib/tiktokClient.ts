@@ -76,15 +76,6 @@ export async function postTikTokEvent(payload: {
 
   const json = JSON.stringify(body);
 
-  /* prefer Beacon when available (fire-and-forget, survives redirect) */
-  if (navigator.sendBeacon) {
-    const ok = navigator.sendBeacon(
-      "/api/tiktok/event",
-      new Blob([json], { type: "application/json" })
-    );
-    if (ok) return true; // queued successfully
-  }
-
   try {
     const res = await fetch("/api/tiktok/event", {
       method: "POST",

@@ -41,7 +41,7 @@ export default function CheckoutForm({
   const [isFirstTab, setIsFirstTab] = useState(true);
   const formRef = useRef<HTMLFormElement | null>(null);
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
-  const sentInit = useRef(false);
+  // const sentInit = useRef(false);
 
   // Check if form is complete
   const isFormComplete =
@@ -188,31 +188,6 @@ export default function CheckoutForm({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onRequestClose]);
-
-  /* fire InitiateCheckout exactly once */
-  useEffect(() => {
-    if (!sentInit.current) {
-      trackTikTokEvent(
-        "InitiateCheckout",
-        {
-          content_id: "ZenFlowFountain",
-          content_name: "ZenFlow™ Fountain",
-          content_type: "product",
-          currency: "USD",
-          value: total ?? undefined,
-          contents: [
-            {
-              content_id: "ZenFlowFountain",
-              content_name: "ZenFlow™ Fountain",
-              quantity: 1,
-            },
-          ],
-        }
-        /* user/page left unchanged */
-      );
-      sentInit.current = true;
-    }
-  }, [total]); // wait for price if available
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
