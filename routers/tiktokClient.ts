@@ -3,12 +3,25 @@ import { sendTikTokEvent, type TikTokEvent } from "../server/utils/tiktok";
 
 const router = Router();
 
-/* ensure JSON body is parsed before hitting our handler */
+/* ensure JSON first, but don’t reject non-JSON yet */
 router.use(express.json());
 
 /* POST /api/tiktok/event  – body must at least include { event: "AddToCart", … } */
 router.post("/event", async (req: Request, res: Response) => {
   try {
+    /* ----------------------------------------------------------
+       Beacon POSTs sometimes arrive with an arbitrary/empty
+       Content-Type, so `express.json()` leaves `req.body` as a
+       raw string.  Parse it manually when that happens.
+    ---------------------------------------------------------- */
+    if (typeof req.body === "string") {
+      try {
+        req.body = JSON.parse(req.body);
+      } catch (_) {
+        /* ignore – will fail the event check below */
+      }
+    }
+
     const {
       event,
       event_time,
@@ -24,7 +37,7 @@ router.post("/event", async (req: Request, res: Response) => {
       return;
     }
 
-    /* ensure downstream helper will add content_id if missing – nothing to block here */
+    /* downstream helper adds content_id/name automatically – no extra guards */
 
     const ip =
       user.ip ||

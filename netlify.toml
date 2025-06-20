@@ -19,7 +19,3 @@
 
 [functions]
   directory = "dist/server"   # ← compiled functions live here
-
-[context.production.environment]   # ← NEW
-  TIKTOK_PIXEL_ID     = "D192EPJC77U7S42UR6O0"
-  TIKTOK_ACCESS_TOKEN = "6421a0db8e39889f358ac229c173c7bba6a216c7"
