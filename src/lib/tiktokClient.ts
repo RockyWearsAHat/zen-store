@@ -82,7 +82,7 @@ export async function postTikTokEvent(payload: {
       "/api/tiktok/event",
       new Blob([json], { type: "application/json" })
     );
-    return ok;
+    if (ok) return true; // queued successfully
   }
 
   try {

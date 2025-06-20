@@ -77,7 +77,7 @@ function normaliseUser(u: TikTokEvent["user"] = {}) {
 }
 
 /* tiny wrapper – now throws on any failure */
-export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
+export async function sendTikTokEvent(payload: TikTokEvent): Promise<boolean> {
   /* ------------------ env sanity checks ------------------ */
   if (!TIKTOK_PIXEL_ID || !TIKTOK_TOKEN) {
     console.warn(
@@ -85,7 +85,7 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
       payload.event,
       "(define TIKTOK_PIXEL_ID & TIKTOK_ACCESS_TOKEN in Netlify)"
     );
-    return;
+    return false;
   }
 
   /* always send hashed user identifiers */
@@ -111,28 +111,30 @@ export async function sendTikTokEvent(payload: TikTokEvent): Promise<void> {
   if (payload.test_event_code)
     url.searchParams.set("test_event_code", payload.test_event_code);
 
-  const res = await fetch(url.toString(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Token": TIKTOK_TOKEN,
-    },
-    body: JSON.stringify(body),
-  });
-
-  /* -------------- error bubbling (no silent fail) -------- */
-  const txt = await res.text();
-  if (!res.ok) {
-    throw new Error(`[tiktok] HTTP ${res.status} – ${txt.slice(0, 140)}`);
-  }
   try {
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Token": TIKTOK_TOKEN!,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const txt = await res.text();
+    if (!res.ok) {
+      console.error(`[tiktok] HTTP ${res.status}`, txt.slice(0, 140));
+      return false;
+    }
     const json = JSON.parse(txt);
     if (json.code !== 0) {
-      throw new Error(`[tiktok] API code ${json.code} – ${json.message ?? ""}`);
+      console.error(`[tiktok] API code ${json.code}`, json.message ?? "");
+      return false;
     }
-  } catch {
-    /* non-JSON ↔ let success stand */
+    console.log("[tiktok] ✓ sent", payload.event);
+    return true;
+  } catch (e) {
+    console.error("[tiktok] network / fetch error", e);
+    return false;
   }
-
-  console.log("[tiktok] ✓ sent", payload.event);
 }

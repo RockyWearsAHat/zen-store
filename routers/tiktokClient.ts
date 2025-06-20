@@ -66,12 +66,12 @@ router.post("/event", async (req: Request, res: Response) => {
       page: clean(page ?? {}),
     };
 
-    await sendTikTokEvent(payload); // ← now typed
+    const ok = await sendTikTokEvent(payload);
 
-    res.json({ ok: true });
+    res.json({ ok });
   } catch (e) {
-    console.error("[tiktokProxy] failed", e);
-    res.status(500).json({ error: "proxy failure" });
+    console.error("[tiktokProxy] failed hard", e);
+    res.json({ ok: false }); // never bubble failure to the client
   }
 });
 
